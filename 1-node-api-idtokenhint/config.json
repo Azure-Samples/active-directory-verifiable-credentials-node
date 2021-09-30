@@ -1,0 +1,8 @@
+{
+    "azTenantId": "<YOUR-AAD-TENANDID>",
+    "azClientId": "<YOUR-AAD-CLIENTID-FOR-KEYVAULT-ACCESS>",
+    "azClientSecret": "<YOUR-AAD-CLIENTSECRET-FOR-KEYVAULT-ACCESS>",
+    "CredentialManifest": "<YOUR-MANIFEST-URL>",
+    "IssuerAuthority": "<YOUR-did:ion>",
+    "VerifierAuthority": "<VCs-did:ion>"
+}

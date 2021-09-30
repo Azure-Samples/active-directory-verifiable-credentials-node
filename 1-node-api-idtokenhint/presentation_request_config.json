@@ -1,0 +1,25 @@
+{
+  "authority": "...set at runtime...",
+  "includeQRCode": false,
+  "registration": {
+    "clientName": "Verifiable Credential Expert Sample"
+  },
+  "callback": {
+    "url": "...set at runtime...",
+    "state": "...set at runtime...",
+    "headers": {
+      "my-api-key": "blabla"
+    }
+  },
+  "presentation": {
+    "includeReceipt": true,
+    "requestedCredentials": [
+      {
+        "type": "VerifiedCredentialExpert",
+        "manifest": "...set at runtime...",
+        "purpose": "the purpose why the verifier asks for a VC",
+        "trustedIssuers": [ "...set at runtime..." ]
+      }
+    ]
+  }
+}

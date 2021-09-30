@@ -102,3 +102,8 @@ dist
 
 # TernJS port file
 .tern-port
+
+# ignore (private) dev settings
+config.[Dd]evelopment.json
+run.[Dd]evelopment.*
+docker-run.[Dd]evelopment.*

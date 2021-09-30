@@ -1,0 +1,26 @@
+{
+    "authority": "..set at runtime...",
+    "includeQRCode": false,
+    "registration": {
+      "clientName": "...set at runtime..."
+    },
+    "callback": {
+      "url": "...set at runtime...",
+      "state": "...set at runtime...",
+      "headers": {
+        "my-api-key": "blabla"
+      }
+    },
+    "issuance": {
+      "type": "FawltyTowers2CampusPass",
+      "manifest": "...set at runtime...",
+      "pin": {
+        "value": "9999",
+        "length": 4
+      },
+      "claims": {
+        "displayName": "Ringo Starr",
+        "sponsorName": "John Lennon"
+      }
+    }
+  }
