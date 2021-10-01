@@ -1,0 +1,25 @@
+{
+  "authority": "did:ion: THIS IS YOUR DID FROM THE VC PAGE IN AZURE PORTAL ...set at runtime...",
+  "includeQRCode": false,
+  "registration": {
+    "clientName": "Verifiable Credential Expert Sample",
+    "purpose": "the purpose why the verifier asks for one or more VCs"
+  },
+  "callback": {
+    "url": "...set at runtime...",
+    "state": "...set at runtime...",
+    "headers": {
+      "my-api-key": "OPTIONAL API-KEY for VERIFIER CALLBACK API"
+    }
+  },
+  "presentation": {
+    "includeReceipt": true,
+    "requestedCredentials": [
+      {
+        "type": "VerifiedCredentialExpert",
+        "purpose": "the purpose why the verifier asks for a VC",
+        "acceptedIssuers": [ "...set at runtime..." ]
+      }
+    ]
+  }
+}
