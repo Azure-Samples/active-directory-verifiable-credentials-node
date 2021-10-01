@@ -31,15 +31,11 @@ if ( !requestConfigFile ) {
 var presentationConfig = require( requestConfigFile );
 presentationConfig.registration.clientName = "Node.js SDK API Verifier";
 presentationConfig.authority = mainApp.config["VerifierAuthority"]
-// get the manifest from config.json, this is the URL to the credential created in the azure portal. 
-// the display and rules file to create the credential can be dound in the credentialfiles directory
-// make sure the credentialtype in the issuance payload ma
-presentationConfig.presentation.requestedCredentials[0].manifest = mainApp.config["CredentialManifest"]
-// copy the issuerDID from the settings and fill in the trustedIssuer part of the payload
+// copy the issuerDID from the settings and fill in the acceptedIssuers part of the payload
 // this means only that issuer should be trusted for the requested credentialtype
 // this value is an array in the payload, you can trust multiple issuers for the same credentialtype
 // very common to accept the test VCs and the Production VCs coming from different verifiable credential services
-presentationConfig.presentation.requestedCredentials[0].trustedIssuers[0] = mainApp.config["IssuerAuthority"]
+presentationConfig.presentation.requestedCredentials[0].acceptedIssuers[0] = mainApp.config["IssuerAuthority"]
 
 function requestTrace( req ) {
   var dateFormatted = new Date().toISOString().replace("T", " ");
