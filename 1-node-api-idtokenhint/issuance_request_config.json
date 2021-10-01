@@ -1,26 +1,26 @@
 {
-    "authority": "..set at runtime...",
-    "includeQRCode": false,
-    "registration": {
-      "clientName": "...set at runtime..."
+  "authority": "did:ion: THIS IS YOUR DID FROM THE VC PAGE IN AZURE PORTAL ...set at runtime...",
+  "includeQRCode": false,
+  "registration": {
+    "clientName": "Verifiable Credential Expert Sample"
+  },
+  "callback": {
+    "url": "...set at runtime...",
+    "state": "...set at runtime...",
+    "headers": {
+      "my-api-key": "OPTIONAL API-KEY for ISSUANCE CALLBACK API"
+    }
+  },
+  "issuance": {
+    "type": "VerifiedCredentialExpert",
+    "manifest": "CREDENTIAL URL ...set at runtime...",
+    "pin": {
+      "value": "123456",
+      "length": 4
     },
-    "callback": {
-      "url": "...set at runtime...",
-      "state": "...set at runtime...",
-      "headers": {
-        "my-api-key": "blabla"
-      }
-    },
-    "issuance": {
-      "type": "FawltyTowers2CampusPass",
-      "manifest": "...set at runtime...",
-      "pin": {
-        "value": "9999",
-        "length": 4
-      },
-      "claims": {
-        "displayName": "Ringo Starr",
-        "sponsorName": "John Lennon"
-      }
+    "claims": {
+      "given_name": "FIRSTNAME",
+      "family_name": "LASTNAME"
     }
   }
+}
