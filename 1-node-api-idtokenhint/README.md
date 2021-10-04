@@ -61,7 +61,7 @@ Register an application in Azure Active Directory:
     - Search for APIs in my organization for bbb94529-53a3-4be5-a069-7eaf2712b826 or Verifiable Credential and click the “Verifiable Credential Request Service”
     - Click the “Application Permission” and expand “VerifiableCredential.Create.All”
     - Click Grant admin consent for {tenant name} on top of the API/Permission list and click YES. This allows the application to get the correct permissions
-![Admin concent](ReadmeFiles/AdminConcent.png)
+![Admin concent](ReadmeFiles/AdminConcent.PNG)
 
 ## Setting up and running the sample
 To run the sample, clone the repository, compile & run it. It's callback endpoint must be publically reachable, and for that reason, use `ngrok` as a reverse proxy to reach your app.
