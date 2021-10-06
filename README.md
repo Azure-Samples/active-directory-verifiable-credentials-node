@@ -5,7 +5,7 @@ This repo contains a set of Azure AD Verifiable Credentials samples
 ## Samples
 | Sample | Description |
 |------|--------|
-| 1-node-api-idtokenhint | Java sample for using the VC Request API to issue and verify verifiable credentials with a credential contract which allows the VC Request API to pass in a payload for the Verifiable Credentials|
+| 1-node-api-idtokenhint | Node sample for using the VC Request API to issue and verify verifiable credentials with a credential contract which allows the VC Request API to pass in a payload for the Verifiable Credentials|
 
 
 
@@ -41,8 +41,8 @@ To call the VC Client API to start the issuance process, the VC Request API need
       "length": 6
     },
     "claims": {
-      "mySpecialClaimOne": "mySpecialValueOne",
-      "mySpecialClaimTwo": "mySpecialValueTwo"
+      "firstName": "Megan",
+      "lastName": "Bowen"
     }
   }
 }
@@ -201,7 +201,7 @@ Some notable attributes in the message:
 
 ## Setup
 
-Before you can run any of these samples make sure your environment is setup correctly. You can follow the setup instructions here [TODO INSERT LINK TO DOCS ONCE PUBLISHED]
+Before you can run any of these samples make sure your environment is setup correctly. You can follow the setup instructions [here](https://aka.ms/didfordevs)
 
 ## Resources
 
