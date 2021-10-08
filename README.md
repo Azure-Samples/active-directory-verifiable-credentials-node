@@ -41,8 +41,8 @@ To call the VC Client API to start the issuance process, the VC Request API need
       "length": 6
     },
     "claims": {
-      "firstName": "Megan",
-      "lastName": "Bowen"
+      "given_name": "Megan",
+      "family_name": "Bowen"
     }
   }
 }
