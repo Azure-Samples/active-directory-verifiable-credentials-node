@@ -9,7 +9,7 @@ This repo contains a set of Azure AD Verifiable Credentials samples
 
 
 
-Microsoft provides a simple to use REST API to issue and verify verifiable credentials. You can use the programming language you prefer to the REST API. Instead of needing to understand the different protocols and encryption algoritms for Verifiable Credentials and DIDs you only need to understand how to format a JSON structure as parameter for the VC Request API.
+Microsoft provides a simple to use REST API to issue and verify verifiable credentials. You can use the programming language you prefer to the REST API. Instead of needing to understand the different protocols and encryption algorithms for Verifiable Credentials and DIDs you only need to understand how to format a JSON structure as parameter for the VC Request API.
 
 ![API Overview](ReadmeFiles/SampleArchitectureOverview.svg)
 
@@ -82,19 +82,19 @@ In your callback endpoint, you will get a callback with the below message when t
 }
 ```
 
-Once the VC is issued, you get a second callback which contains information if the issuance of the verifiable credential to the user was succesful or not.
+Once the VC is issued, you get a second callback which contains information if the issuance of the verifiable credential to the user was successful or not.
 
 This callback is typically used to notify the user on the issuance website the process is completed and continue with whatever the website needs or wants the user to do.
 
-### Succesful Issuance flow response
+### Successful Issuance flow response
 ```JSON
 {
-  "code":"issuance_succesful",
+  "code":"issuance_successful",
   "requestId":"9463da82-e397-45b6-a7a2-2c4223b9fdd0",
   "state": "...what you passed as the state value..."
 }
 ```
-### Unuccesful Issuance flow response
+### Unuccessful Issuance flow response
 ```JSON
 {
   "code":"issuance_failed",
@@ -107,11 +107,12 @@ This callback is typically used to notify the user on the issuance website the p
 }
 ```
 When the issuance fails this can be caused by several reasons. The following details are currently provided in the error part of the response:
+
 | Message | Definition |
 |---|---|
 | fetch_contract_error | The user has canceled the flow |
 | issuance_service_error | VC Issuance service was not able to validate requirements / something went wrong on Microsoft AAD VC Issuance service side. |
-| unspecified_error | Something went wrong that doesn’t fall into this bucket |
+| unspecified_error | Something went wrong that doesn't fall into this bucket |
 
 
 ## Verification
@@ -196,7 +197,7 @@ Once the VC is verified, you get a second, more complete, callback which contain
 ```
 Some notable attributes in the message:
 - **claims** - parsed claims from the VC
-- **receipt.id_token** - the ID token of the presentation, this is the full presentation Authenticator has send to the Request service. Great for debugging and also to retrieve information not available in the payload. To keep the responses small the receipt property in the request should be set to false.
+- **receipt.id_token** - the ID token of the presentation, this is the full presentation Authenticator has sent to the Request service. Great for debugging and also to retrieve information not available in the payload. To keep the responses small the receipt property in the request should be set to false.
 
 
 ## Setup
