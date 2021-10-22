@@ -133,7 +133,7 @@ Since the API is now a multi-tenant API it needs to receive an access token when
 The endpoint of the API is https://beta.did.msidentity.com/v1.0/{YOURTENANTID}/verifiablecredentials/request 
 
 To get an access token we are using MSAL as library. MSAL supports the creation and caching of access token which are used when calling Azure Active Directory protected resources like the verifiable credential request API.
-Typicall calling the libary looks something like this:
+Typical calling the library looks something like this:
 ```JavaScript
 var accessToken = "";
 try {

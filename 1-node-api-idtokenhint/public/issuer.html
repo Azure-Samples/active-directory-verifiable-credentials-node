@@ -93,7 +93,7 @@
                                     if (respMsg.status == 'issuance_failed') {
                                         document.getElementById('pinCodeText').style.display = "none";
                                         //document.getElementById('message').innerHTML = respMsg.message;
-                                        document.getElementById('message').innerHTML = "Issuance error occured, did you enter the wrong pincode? Please refresh the page and try again.";
+                                        document.getElementById('message').innerHTML = "Issuance error occurred, did you enter the wrong pincode? Please refresh the page and try again.";
                                         document.getElementById('payload').innerHTML = "Payload: " + respMsg.payload;
                                         clearInterval(checkStatus);
                                     }

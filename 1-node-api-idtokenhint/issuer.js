@@ -29,7 +29,7 @@ if ( !requestConfigFile ) {
 var issuanceConfig = require( requestConfigFile );
 issuanceConfig.registration.clientName = "Node.js SDK API Issuer";
 // get the manifest from config.json, this is the URL to the credential created in the azure portal. 
-// the display and rules file to create the credential can be dound in the credentialfiles directory
+// the display and rules file to create the credential can be found in the credentialfiles directory
 // make sure the credentialtype in the issuance payload ma
 issuanceConfig.authority = mainApp.config["IssuerAuthority"]
 issuanceConfig.issuance.manifest = mainApp.config["CredentialManifest"]
@@ -176,7 +176,7 @@ mainApp.app.post('/api/issuer/issuance-request-callback', parser, async (req, re
 })
 /**
  * this function is called from the UI polling for a response from the AAD VC Service.
- * when a callback is recieved at the presentationCallback service the session will be updated
+ * when a callback is received at the presentationCallback service the session will be updated
  * this method will respond with the status so the UI can reflect if the QR code was scanned and with the result of the presentation
  */
 mainApp.app.get('/api/issuer/issuance-response', async (req, res) => {
