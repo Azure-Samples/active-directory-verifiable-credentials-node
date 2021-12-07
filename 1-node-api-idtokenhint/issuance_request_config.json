@@ -8,7 +8,7 @@
     "url": "...set at runtime...",
     "state": "...set at runtime...",
     "headers": {
-      "my-api-key": "OPTIONAL API-KEY for ISSUANCE CALLBACK API"
+      "api-key": "OPTIONAL API-KEY for ISSUANCE CALLBACK API"
     }
   },
   "issuance": {
