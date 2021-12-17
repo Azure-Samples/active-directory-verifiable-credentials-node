@@ -18,6 +18,7 @@ const https = require('https')
 const url = require('url')
 const { Console } = require('console');
 var msal = require('@azure/msal-node');
+var uuid = require('uuid');
 var mainApp = require('./app.js');
 
 var parser = bodyParser.urlencoded({ extended: false });
@@ -36,6 +37,10 @@ presentationConfig.authority = mainApp.config["VerifierAuthority"]
 // this value is an array in the payload, you can trust multiple issuers for the same credentialtype
 // very common to accept the test VCs and the Production VCs coming from different verifiable credential services
 presentationConfig.presentation.requestedCredentials[0].acceptedIssuers[0] = mainApp.config["IssuerAuthority"]
+var apiKey = uuid.v4();
+if ( presentationConfig.callback.headers ) {
+  presentationConfig.callback.headers['api-key'] = apiKey;
+}
 
 function requestTrace( req ) {
   var dateFormatted = new Date().toISOString().replace("T", " ");
@@ -120,6 +125,12 @@ mainApp.app.post('/api/verifier/presentation-request-callback', parser, async (r
   req.on('end', function () {
     requestTrace( req );
     console.log( body );
+    if ( req.headers['api-key'] != apiKey ) {
+      res.status(401).json({
+        'error': 'api-key wrong or missing'
+        });  
+      return; 
+    }
     var presentationResponse = JSON.parse(body.toString());
     // there are 2 different callbacks. 1 if the QR code is scanned (or deeplink has been followed)
     // Scanning the QR code makes Authenticator download the specific request from the server
@@ -150,7 +161,8 @@ mainApp.app.post('/api/verifier/presentation-request-callback', parser, async (r
             "payload": presentationResponse.issuers,
             "subject": presentationResponse.subject,
             "firstName": presentationResponse.issuers[0].claims.firstName,
-            "lastName": presentationResponse.issuers[0].claims.lastName
+            "lastName": presentationResponse.issuers[0].claims.lastName,
+            "presentationResponse": presentationResponse
         };
         session.sessionData = cacheData;
         mainApp.sessionStore.set( presentationResponse.state, session, (error) => {
@@ -172,7 +184,44 @@ mainApp.app.get('/api/verifier/presentation-response', async (req, res) => {
   mainApp.sessionStore.get( id, (error, session) => {
     if (session && session.sessionData) {
       console.log(`status: ${session.sessionData.status}, message: ${session.sessionData.message}`);
+      if ( session.sessionData.status == "presentation_verified" ) {
+        delete session.sessionData.presentationResponse; // browser don't need this
+      }
       res.status(200).json(session.sessionData);   
       }
+  })
+})
+
+/**
+ * B2C REST API Endpoint for retrieveing the VC presentation response
+ * body: The InputClaims from the B2C policy. It will only be one claim named 'id'
+ * return: a JSON structure with claims from the VC presented
+ */
+var parserJson = bodyParser.json();
+mainApp.app.post('/api/verifier/presentation-response-b2c', parserJson, async (req, res) => {
+  var id = req.body.id;
+  requestTrace( req );
+  mainApp.sessionStore.get( id, (error, store) => {
+    if (store && store.sessionData && store.sessionData.status == "presentation_verified" ) {
+      console.log("Has VC. Will return it to B2C");      
+      var claims = store.sessionData.presentationResponse.issuers[0].claims;
+      var claimsExtra = {
+        'vcType': presentationConfig.presentation.requestedCredentials[0].type,
+        'vcIss': store.sessionData.presentationResponse.issuers[0].authority,
+        'vcSub': store.sessionData.presentationResponse.subject,
+        'vcKey': store.sessionData.presentationResponse.subject.replace("did:ion:", "did.ion.").split(":")[0]
+        };        
+        var responseBody = { ...claimsExtra, ...claims }; // merge the two structures
+        req.session.sessionData = null; 
+        console.log( responseBody );
+        res.status(200).json( responseBody );   
+    } else {
+      console.log('Will return 409 to B2C');
+      res.status(409).json({
+        'version': '1.0.0', 
+        'status': 400,
+        'userMessage': 'Verifiable Credentials not presented'
+        });   
+    }
   })
 })
