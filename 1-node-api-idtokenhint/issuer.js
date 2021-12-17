@@ -15,6 +15,7 @@ const https = require('https')
 const url = require('url')
 const { SSL_OP_COOKIE_EXCHANGE } = require('constants');
 var msal = require('@azure/msal-node');
+var uuid = require('uuid');
 var mainApp = require('./app.js');
 
 var parser = bodyParser.urlencoded({ extended: false });
@@ -36,6 +37,10 @@ issuanceConfig.issuance.manifest = mainApp.config["CredentialManifest"]
 // if there is pin code in the config, but length is zero - remove it. It really shouldn't be there
 if ( issuanceConfig.issuance.pin && issuanceConfig.issuance.pin.length == 0 ) {
   issuanceConfig.issuance.pin = null;
+}
+var apiKey = uuid.v4();
+if ( issuanceConfig.callback.headers ) {
+  issuanceConfig.callback.headers['api-key'] = apiKey;
 }
 
 function requestTrace( req ) {
@@ -142,6 +147,12 @@ mainApp.app.post('/api/issuer/issuance-request-callback', parser, async (req, re
   req.on('end', function () {
     requestTrace( req );
     console.log( body );
+    if ( req.headers['api-key'] != apiKey ) {
+      res.status(401).json({
+        'error': 'api-key wrong or missing'
+        });  
+      return; 
+    }
     var issuanceResponse = JSON.parse(body.toString());
     var message = null;
     // there are 2 different callbacks. 1 if the QR code is scanned (or deeplink has been followed)
