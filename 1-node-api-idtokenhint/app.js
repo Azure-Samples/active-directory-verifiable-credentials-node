@@ -15,6 +15,8 @@ const https = require('https')
 const url = require('url')
 const { SSL_OP_COOKIE_EXCHANGE } = require('constants');
 var msal = require('@azure/msal-node');
+const fs = require('fs');
+const crypto = require('crypto');
 
 ///////////////////////////////////////////////////////////////////////////////////////
 // config file can come from command line, env var or the default
@@ -30,7 +32,7 @@ module.exports.config = config;
 
 ///////////////////////////////////////////////////////////////////////////////////////
 // MSAL
-const msalConfig = {
+var msalConfig = {
   auth: {
       clientId: config.azClientId,
       authority: `https://login.microsoftonline.com/${config.azTenantId}`,
@@ -46,6 +48,24 @@ const msalConfig = {
       }
   }
 };
+
+// if certificateName is specified in config, then we change the MSAL config to use it
+if ( config.azCertificateName !== '') {
+  const privateKeyData = fs.readFileSync(config.azCertificatePrivateKeyLocation, 'utf8');
+  console.log(config.azCertThumbprint);  
+  const privateKeyObject = crypto.createPrivateKey({ key: privateKeyData, format: 'pem',    
+    passphrase: config.azCertificateName.replace("CN=", "") // the passphrase is the appShortName (see Configure.ps1)    
+  });
+  msalConfig.auth = {
+    clientId: config.azClientId,
+    authority: `https://login.microsoftonline.com/${config.azTenantId}`,
+    clientCertificate: {
+      thumbprint: config.azCertThumbprint,
+      privateKey: privateKeyObject.export({ format: 'pem', type: 'pkcs8' })
+    }
+  };
+}
+
 const cca = new msal.ConfidentialClientApplication(msalConfig);
 const msalClientCredentialRequest = {
   scopes: ["bbb94529-53a3-4be5-a069-7eaf2712b826/.default"],
