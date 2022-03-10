@@ -18,7 +18,7 @@
     "express": "^4.17.1",
     "express-session": "^1.17.2",
     "fetch-mock": "^9.11.0",
-    "node-fetch": "2.6.1",
+    "node-fetch": "^3.2.2",
     "secure-random": "^1.1.2",
     "uuid": "^8.3.2"
   }
