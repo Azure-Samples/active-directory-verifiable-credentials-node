@@ -105,10 +105,14 @@ mainApp.app.get('/api/issuer/issuance-request', async (req, res) => {
     issuanceConfig.issuance.pin.value = generatePin( issuanceConfig.issuance.pin.length );
   }
   // here you could change the payload manifest and change the firstname and lastname
-  issuanceConfig.issuance.claims.displayName = "Forrest Gump";
-  issuanceConfig.issuance.claims.sponsorName = "Lieutenant Dan";
+  if ( issuanceConfig.issuance.claims ) {
+    issuanceConfig.issuance.claims.given_name = "Megan";
+    issuanceConfig.issuance.claims.family_name = "Bowen";
+  }
 
   console.log( 'VC Client API Request' );
+  var client_api_request_endpoint = `${mainApp.config.msIdentityHostName}${mainApp.config.azTenantId}/verifiablecredentials/request`;
+  console.log( client_api_request_endpoint );
   console.log( issuanceConfig );
 
   var payload = JSON.stringify(issuanceConfig);
@@ -122,7 +126,6 @@ mainApp.app.get('/api/issuer/issuance-request', async (req, res) => {
     }
   };
 
-  var client_api_request_endpoint = `https://beta.did.msidentity.com/v1.0/${mainApp.config.azTenantId}/verifiablecredentials/request`;
   const response = await fetch(client_api_request_endpoint, fetchOptions);
   var resp = await response.json()
   // the response from the VC Request API call is returned to the caller (the UI). It contains the URI to the request which Authenticator can download after

@@ -4,8 +4,8 @@
   "description": "",
   "main": "app.js",
   "scripts": {
-    "start": "node app.js ./issuance_request_config_v2.json",
-    "debug": "node --inspect-brk=9229 app.js ./issuance_request_config_v2.json",
+    "start": "node app.js ./issuance_request_config.json",
+    "debug": "node --inspect-brk=9229 app.js ./issuance_request_config.json",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",

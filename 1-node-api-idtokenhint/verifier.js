@@ -89,6 +89,8 @@ mainApp.app.get('/api/verifier/presentation-request', async (req, res) => {
   presentationConfig.callback.state = id;
 
   console.log( 'VC Client API Request' );
+  var client_api_request_endpoint = `${mainApp.config.msIdentityHostName}${mainApp.config.azTenantId}/verifiablecredentials/request`;
+  console.log( client_api_request_endpoint );
   var payload = JSON.stringify(presentationConfig);
   console.log( payload );
   const fetchOptions = {
@@ -101,7 +103,6 @@ mainApp.app.get('/api/verifier/presentation-request', async (req, res) => {
     }
   };
 
-  var client_api_request_endpoint = `https://beta.did.msidentity.com/v1.0/${mainApp.config.azTenantId}/verifiablecredentials/request`;
   const response = await fetch(client_api_request_endpoint, fetchOptions);
   var resp = await response.json()
 
