@@ -10,7 +10,8 @@ var session = require('express-session')
 var base64url = require('base64url')
 var secureRandom = require('secure-random');
 var bodyParser = require('body-parser')
-var fetch = require( 'node-fetch' );
+// mod.cjs
+const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
 const https = require('https')
 const url = require('url')
 const { SSL_OP_COOKIE_EXCHANGE } = require('constants');
@@ -165,17 +166,9 @@ mainApp.app.post('/api/issuer/issuance-request-callback', parser, async (req, re
     // the QR code to prevent the user from scanning it twice (resulting in an error since the request is already deleted)
     if ( issuanceResponse.code == "request_retrieved" ) {
       message = "QR Code is scanned. Waiting for issuance to complete...";
-    }
-    if ( issuanceResponse.code == "issuance_successful" ) {
-      message = "Credential successfully issued";
-    }
-    if ( issuanceResponse.code == "issuance_error" ) {
-      message = issuanceResponse.error.message;
-    }
-    if ( message != null ) {
       mainApp.sessionStore.get(issuanceResponse.state, (error, session) => {
         var sessionData = {
-          "status" : issuanceResponse.code,
+          "status" : "request_retrieved",
           "message": message
         };
         session.sessionData = sessionData;
@@ -184,6 +177,35 @@ mainApp.app.post('/api/issuer/issuance-request-callback', parser, async (req, re
         });
       })      
     }
+
+    if ( issuanceResponse.code == "issuance_successful" ) {
+      message = "Credential successfully issued";
+      mainApp.sessionStore.get(issuanceResponse.state, (error, session) => {
+        var sessionData = {
+          "status" : "issuance_successful",
+          "message": message
+        };
+        session.sessionData = sessionData;
+        mainApp.sessionStore.set( issuanceResponse.state, session, (error) => {
+          res.send();
+        });
+      })      
+    }
+
+    if ( issuanceResponse.code == "issuance_error" ) {
+      mainApp.sessionStore.get(issuanceResponse.state, (error, session) => {
+        var sessionData = {
+          "status" : "issuance_error",
+          "message": issuanceResponse.error.message,
+          "payload" :issuanceResponse.error.code
+        };
+        session.sessionData = sessionData;
+        mainApp.sessionStore.set( issuanceResponse.state, session, (error) => {
+          res.send();
+        });
+      })      
+    }
+    
     res.send()
   });  
   res.send()

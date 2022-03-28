@@ -10,7 +10,8 @@ var session = require('express-session')
 var base64url = require('base64url')
 var secureRandom = require('secure-random');
 var bodyParser = require('body-parser')
-var fetch = require( 'node-fetch' );
+// mod.cjs
+const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
 const https = require('https')
 const url = require('url')
 const { SSL_OP_COOKIE_EXCHANGE } = require('constants');
