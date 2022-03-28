@@ -1,63 +1,57 @@
 [CmdletBinding()]
 param(    
-    [PSCredential] $Credential,
-    [Parameter(Mandatory=$False, HelpMessage='Tenant ID (This is a GUID which represents the "Directory ID" of the AzureAD tenant into which you want to create the apps')]
-    [string] $tenantId
+    [Parameter(Mandatory=$False, HelpMessage='Tenant ID (This is a GUID which represents the "Directory ID" of the AzureAD tenant into which you want to create the apps')][string] $tenantId
 )
 
-if ((Get-Module -ListAvailable -Name "AzureAD") -eq $null) { 
-    Install-Module "AzureAD" -Scope CurrentUser 
-} 
-Import-Module AzureAD
-$ErrorActionPreference = 'Stop'
+# Pre-requisites
+if ($null -eq (Get-Module -ListAvailable -Name "Az.Accounts")) {  
+    Install-Module -Name "Az.Accounts" -Scope CurrentUser 
+}
+if ($null -eq (Get-Module -ListAvailable -Name "Az.Resources")) {  
+    Install-Module "Az.Resources" -Scope CurrentUser 
+}
+Import-Module -Name "Az.Accounts"
+Import-Module -Name "Az.Resources"
 
-Function Cleanup
-{
-<#
-.Description
-This function removes the Azure AD applications for the sample. These applications were created by the Configure.ps1 script
-#>
+$isMacLinux = ($env:PATH -imatch "/usr/bin" )
 
-    # $tenantId is the Active Directory Tenant. This is a GUID which represents the "Directory ID" of the AzureAD tenant 
-    # into which you want to create the apps. Look it up in the Azure portal in the "Properties" of the Azure AD. 
-
-    # Login to Azure PowerShell (interactive if credentials are not already provided:
-    # you'll need to sign-in with creds enabling your to create apps in the tenant)
-    if (!$Credential -and $TenantId)
-    {
-        $creds = Connect-AzureAD -TenantId $tenantId
+$ctx = Get-AzContext
+if ( !$ctx ) {
+    if ( $tenantId ) {
+        $creds = Connect-AzAccount -TenantId $tenantId
+    } else {
+        $creds = Connect-AzAccount
+        $tenantId = $creds.Context.Account.Tenants[0]
     }
-    else
-    {
-        if (!$TenantId)
-        {
-            $creds = Connect-AzureAD -Credential $Credential
-        }
-        else
-        {
-            $creds = Connect-AzureAD -TenantId $tenantId -Credential $Credential
-        }
-    }
-
-    if (!$tenantId)
-    {
-        $tenantId = $creds.Tenant.Id
-    }
-    $tenant = Get-AzureADTenantDetail
-    $tenantName =  ($tenant.VerifiedDomains | Where { $_._Default -eq $True }).Name
-    
-    # Removes the applications
-    Write-Host "Cleaning-up applications from tenant '$tenantName'"
-
-    Write-Host "Removing 'client' (Verifiable Credentials Node sample if needed"
-    $app=Get-AzureADApplication -Filter "DisplayName eq 'Verifiable Credentials Node sample'"  
-
-    if ($app)
-    {
-        Remove-AzureADApplication -ObjectId $app.ObjectId
-        Write-Host "Removed."
-    }
-
+} else {
+    if ( $TenantId -and $TenantId -ne $ctx.Tenant.TenantId ) {
+        write-error "You are targeting tenant $tenantId but you are signed in to tennant $($ctx.Tenant.TenantId)"
+    }    
+    $tenantId = $ctx.Tenant.TenantId
 }
 
-Cleanup -Credential $Credential -tenantId $TenantId
+$tenant = Get-AzTenant
+$tenantDomainName =  ($tenant | Where { $_.Id -eq $tenantId }).Domains[0]
+    
+# Removes the applications
+Write-Host "Cleaning-up application from tenant '$tenantDomainName'"
+$appName = "Verifiable Credentials VC Node sample"
+$appShortName = "vcnodesample"
+Write-Host "Removing 'client' ($appName) if needed"
+$app = Get-AzADApplication -DisplayName $appName
+if ($null -ne $app) {
+    $app | Remove-AzADApplication
+    Write-Host "Removed app $($app.AppId)"
+}
+
+$certSubject = "CN=$appShortName"
+write-host "Removing self-signed certificate $certSubject files aadappcert*"
+if ( $False -eq $isMacLinux ) {
+    foreach($cert in Get-ChildItem Cert:\CurrentUser\My | Where-Object {$_.Subject -match $certSubject}) {
+        write-host "Removing self-signed certificate $certSubject $($cert.Thumbprint)"
+        $cert | Remove-Item
+    }
+    Remove-Item -Path .\aadappcert*.*
+} else {
+    & rm ./aadappcert*
+}

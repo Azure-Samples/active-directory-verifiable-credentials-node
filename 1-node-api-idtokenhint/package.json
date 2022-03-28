@@ -4,8 +4,8 @@
   "description": "",
   "main": "app.js",
   "scripts": {
-    "start": "node app.js ./issuance_request_config_v2.json",
-    "debug": "node --inspect-brk=9229 app.js ./issuance_request_config_v2.json",
+    "start": "node app.js ./issuance_request_config.json",
+    "debug": "node --inspect-brk=9229 app.js ./issuance_request_config.json",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",
@@ -14,10 +14,11 @@
     "@azure/msal-node": "^1.3.0",
     "base64url": "^3.0.1",
     "body-parser": "^1.19.0",
+    "crypto": "^1.0.1",
     "express": "^4.17.1",
     "express-session": "^1.17.2",
     "fetch-mock": "^9.11.0",
-    "node-fetch": "2.6.1",
+    "node-fetch": "2.6.7",
     "secure-random": "^1.1.2",
     "uuid": "^8.3.2"
   }

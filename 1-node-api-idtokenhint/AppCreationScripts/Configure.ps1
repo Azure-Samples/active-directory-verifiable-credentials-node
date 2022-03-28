@@ -1,235 +1,137 @@
 [CmdletBinding()]
 param(
-    [PSCredential] $Credential,
-    [Parameter(Mandatory=$False, HelpMessage='Tenant ID (This is a GUID which represents the "Directory ID" of the AzureAD tenant into which you want to create the apps')]
-    [string] $tenantId
+    [Parameter(Mandatory=$False, HelpMessage='Tenant ID (This is a GUID which represents the "Directory ID" of the AzureAD tenant into which you want to create the apps')][string] $tenantId,
+    [Parameter(Mandatory=$False, HelpMessage='Switch if you want to generate a client_secret for the app')][switch]$ClientSecret = $False,
+    [Parameter(Mandatory=$False, HelpMessage='Switch if you want to generate a client certificate for the app')][switch]$ClientCertificate = $False
 )
 
-<#
- This script creates the Azure AD applications needed for this sample and updates the configuration files
- for the visual Studio projects from the data in the Azure AD applications.
+# Pre-requisites
+if ($null -eq (Get-Module -ListAvailable -Name "Az.Accounts")) {  
+    Install-Module -Name "Az.Accounts" -Scope CurrentUser 
+}
+if ($null -eq (Get-Module -ListAvailable -Name "Az.Resources")) {  
+    Install-Module "Az.Resources" -Scope CurrentUser 
+}
+Import-Module -Name "Az.Accounts"
+Import-Module -Name "Az.Resources"
 
- Before running this script you need to install the AzureAD cmdlets as an administrator. 
- For this:
- 1) Run Powershell as an administrator
- 2) in the PowerShell window, type: Install-Module AzureAD
+$isMacLinux = ($env:PATH -imatch "/usr/bin" )
+# default to client_secret
+if ( !$ClientSecret -and !$ClientCertificate ) { $ClientSecret = $True }
 
- There are four ways to run this script. For more information, read the AppCreationScripts.md file in the same folder as this script.
-#>
-
-# Create a password that can be used as an application key
-Function ComputePassword
-{
-    $aesManaged = New-Object "System.Security.Cryptography.AesManaged"
-    $aesManaged.Mode = [System.Security.Cryptography.CipherMode]::CBC
-    $aesManaged.Padding = [System.Security.Cryptography.PaddingMode]::Zeros
-    $aesManaged.BlockSize = 128
-    $aesManaged.KeySize = 256
-    $aesManaged.GenerateKey()
-    return [System.Convert]::ToBase64String($aesManaged.Key)
+$ctx = Get-AzContext
+if ( !$ctx ) {
+    if ( $tenantId ) {
+        $creds = Connect-AzAccount -TenantId $tenantId
+    } else {
+        $creds = Connect-AzAccount
+        $tenantId = $creds.Context.Account.Tenants[0]
+    }
+} else {
+    if ( $TenantId -and $TenantId -ne $ctx.Tenant.TenantId ) {
+        write-error "You are targeting tenant $tenantId but you are signed in to tennant $($ctx.Tenant.TenantId)"
+    }    
+    $tenantId = $ctx.Tenant.TenantId
 }
 
-# Create an application key
-# See https://www.sabin.io/blog/adding-an-azure-active-directory-application-and-key-using-powershell/
-Function CreateAppKey([DateTime] $fromDate, [double] $durationInYears, [string]$pw)
-{
-    $endDate = $fromDate.AddYears($durationInYears) 
-    $keyId = (New-Guid).ToString();
-    $key = New-Object Microsoft.Open.AzureAD.Model.PasswordCredential
-    $key.StartDate = $fromDate
-    $key.EndDate = $endDate
-    $key.Value = $pw
-    $key.KeyId = $keyId
-    return $key
+$tenant = Get-AzTenant
+$tenantDomainName =  ($tenant | Where { $_.Id -eq $tenantId }).Domains[0]
+$tenantName =  ($tenant | Where { $_.Id -eq $tenantId }).Name
+
+# Create the client AAD application
+$appName = "Verifiable Credentials VC Node sample"
+$appShortName = "vcnodesample"
+$clientAadApplication = Get-AzADApplication -DisplayName $appName
+if ($null -ne $clientAadApplication) {
+    Write-Host "App $appName ($($clientAadApplication.AppId)) already exists"
+    exit
+}
+Write-Host "Creating the AAD application ($appName)"
+$clientAadApplication = New-AzADApplication -DisplayName $appName `
+                                            -IdentifierUris "https://$tenantDomainName/$appShortName" 
+$clientServicePrincipal = ($clientAadApplication | New-AzADServicePrincipal)
+Write-Host "AppId $($clientAadApplication.AppId)"
+# Generate a certificate or client_secret
+$client_secret = ""
+$certSubject = ""
+$certThumbprint = ""
+$certLocation = ""
+$certPrivateKey = ""
+if ( $ClientCertificate ) {
+    $certSubject = "CN=$appShortName"
+    Write-Host "Generating self-signed certificate $certSubject"
+    # generating a self signed certificate is done differently on Windows vs Mac/Linux
+    if ( $False -eq $isMacLinux ) {
+        $cert=New-SelfSignedCertificate -Subject "CN=$appShortName" -CertStoreLocation "Cert:\CurrentUser\My"  -KeyExportPolicy Exportable -KeySpec Signature
+        $certThumbprint = $cert.thumbprint
+        $certData = [System.Convert]::ToBase64String($cert.RawData, 'InsertLineBreaks')
+        Set-Content -Path .\aadappcert.crt -Value "-----BEGIN CERTIFICATE-----`n$certData`n-----END CERTIFICATE-----"
+        $certLocation = (Resolve-Path ".\aadappcert.crt").Path
+        # Export PFX certificate along with private key
+        $securePassword = ConvertTo-SecureString -String $appShortName -Force -AsPlainText
+        Export-PfxCertificate -Cert $cert -FilePath $certLocation.Replace(".crt", ".pfx") -Password $SecurePassword | Out-null
+        $certPrivateKey = $certLocation.Replace(".crt", ".pem") # you need to convert pfx -> pem. See note at bottom
+    } else { # Mac/Linux - generate the self-signed certificate via openssl
+        & openssl genrsa -out ./aadappcert.pem 2048 
+        & openssl req -new -key ./aadappcert.pem -out ./aadappcert.csr -subj "/$certSubject"
+        & openssl x509 -req -days 365 -in ./aadappcert.csr -signkey ./aadappcert.pem -out ./aadappcert.crt
+        & openssl x509 -in ./aadappcert.crt -fingerprint -sha1 | grep Fingerprint | cut -d '=' -f 2 > ./aadappcert.thumbprint
+        $certThumbprint = (Get-Content ./aadappcert.thumbprint | Out-String).Replace(":","").Replace("`n","")
+        $certData = Get-Content ./aadappcert.crt | Out-String
+        $certData =[Convert]::ToBase64String( [System.Text.Encoding]::Ascii.GetBytes($certData) ) 
+        $certLocation = (Resolve-Path ".$([IO.Path]::DirectorySeparatorChar)aadappcert.crt").Path  
+        $certPrivateKey = (Resolve-Path ".$([IO.Path]::DirectorySeparatorChar)aadappcert.pem").Path  
+    }
+    $clientAadApplication | New-AzADAppCredential -CertValue $certData        
+}
+if ( $ClientSecret ) {
+    # Get a 1 year client secret for the client Application
+    Write-Host "Generating client_secret"
+    $fromDate = [DateTime]::Now
+    $appCreds = ($clientAadApplication | New-AzADAppCredential -StartDate $fromDate -EndDate $fromDate.AddYears(1) )
+    $client_secret = $appCreds.SecretText
 }
 
-# Adds the requiredAccesses (expressed as a pipe separated string) to the requiredAccess structure
-# The exposed permissions are in the $exposedPermissions collection, and the type of permission (Scope | Role) is 
-# described in $permissionType
-Function AddResourcePermission($requiredAccess, `
-                               $exposedPermissions, [string]$requiredAccesses, [string]$permissionType)
-{
-        foreach($permission in $requiredAccesses.Trim().Split("|"))
-        {
-            foreach($exposedPermission in $exposedPermissions)
-            {
-                if ($exposedPermission.Value -eq $permission)
-                 {
-                    $resourceAccess = New-Object Microsoft.Open.AzureAD.Model.ResourceAccess
-                    $resourceAccess.Type = $permissionType # Scope = Delegated permissions | Role = Application permissions
-                    $resourceAccess.Id = $exposedPermission.Id # Read directory data
-                    $requiredAccess.ResourceAccess.Add($resourceAccess)
-                 }
-            }
-        }
-}
+# Add Required Resources Access (from 'client' to 'Verifiable Credential Request Service')
+$permissionName = "VerifiableCredential.Create.All"
+Write-Host "Adding API Permission $permissionName"
+$spVCRS = Get-AzADServicePrincipal -DisplayName "Verifiable Credential Request Service"
+$permissionId = ($spVCRS.AppRole | where {$_.DisplayName -eq $permissionName}).Id
+Add-AzADAppPermission -ObjectId $clientAadApplication.Id -ApiId $spVCRS.AppId -PermissionId $permissionId -Type "Role"
 
-#
-# Exemple: GetRequiredPermissions "Microsoft Graph"  "Graph.Read|User.Read"
-# See also: http://stackoverflow.com/questions/42164581/how-to-configure-a-new-azure-ad-application-through-powershell
-Function GetRequiredPermissions([string] $applicationDisplayName, [string] $requiredDelegatedPermissions, [string]$requiredApplicationPermissions, $servicePrincipal)
-{
-    # If we are passed the service principal we use it directly, otherwise we find it from the display name (which might not be unique)
-    if ($servicePrincipal)
-    {
-        $sp = $servicePrincipal
-    }
-    else
-    {
-        $sp = Get-AzureADServicePrincipal -Filter "DisplayName eq '$applicationDisplayName'"
-    }
-    $appid = $sp.AppId
-    $requiredAccess = New-Object Microsoft.Open.AzureAD.Model.RequiredResourceAccess
-    $requiredAccess.ResourceAppId = $appid 
-    $requiredAccess.ResourceAccess = New-Object System.Collections.Generic.List[Microsoft.Open.AzureAD.Model.ResourceAccess]
+Write-Host "Done creating the client application ($appName)"
 
-    # $sp.Oauth2Permissions | Select Id,AdminConsentDisplayName,Value: To see the list of all the Delegated permissions for the application:
-    if ($requiredDelegatedPermissions)
-    {
-        AddResourcePermission $requiredAccess -exposedPermissions $sp.Oauth2Permissions -requiredAccesses $requiredDelegatedPermissions -permissionType "Scope"
-    }
-    
-    # $sp.AppRoles | Select Id,AdminConsentDisplayName,Value: To see the list of all the Application permissions for the application
-    if ($requiredApplicationPermissions)
-    {
-        AddResourcePermission $requiredAccess -exposedPermissions $sp.AppRoles -requiredAccesses $requiredApplicationPermissions -permissionType "Role"
-    }
-    return $requiredAccess
-}
+# URL of the AAD application in the Azure portal
+# Future? $clientPortalUrl = "https://portal.azure.com/#@"+$tenantName+"/blade/Microsoft_AAD_RegisteredApps/ApplicationMenuBlade/Overview/appId/"+$clientAadApplication.AppId+"/objectId/"+$clientAadApplication.ObjectId+"/isMSAApp/"
+$clientPortalUrl = "https://portal.azure.com/#blade/Microsoft_AAD_RegisteredApps/ApplicationMenuBlade/CallAnAPI/appId/"+$clientAadApplication.AppId+"/objectId/"+$clientAadApplication.ObjectId+"/isMSAApp/"
 
-
-Function UpdateLine([string] $line, [string] $value)
-{
-    $index = $line.IndexOf('=')
-    $delimiter = ';'
-    if ($index -eq -1)
-    {
-        $index = $line.IndexOf(':')
-        $delimiter = ','
-    }
-    if ($index -ige 0)
-    {
-        $line = $line.Substring(0, $index+1) + " "+'"'+$value+'"'+$delimiter
-    }
-    return $line
-}
-
-Function UpdateTextFile([string] $configFilePath, [System.Collections.HashTable] $dictionary)
-{
-    $lines = Get-Content $configFilePath -Raw
-    foreach($key in $dictionary.Keys)
-    {
-        $lines = $lines.Replace( $key, $dictionary[$key] )
-    }
-    Set-Content -Path $configFilePath -Value $lines -Force
-}
-
+# create the HTML file with deployment details
 Set-Content -Value "<html><body><table>" -Path createdApps.html
 Add-Content -Value "<thead><tr><th>Application</th><th>AppId</th><th>Url in the Azure portal</th></tr></thead><tbody>" -Path createdApps.html
+Add-Content -Value "<tr><td>$appName</td><td>$($clientAadApplication.AppId)</td><td><a href='$clientPortalUrl'>$appName</a></td></tr>" -Path createdApps.html
+Add-Content -Value "</tbody></table></body></html>" -Path createdApps.html  
 
-Function ConfigureApplications
-{
-<#.Description
-   This function creates the Azure AD applications for the sample in the provided Azure AD tenant and updates the
-   configuration files in the client and service project  of the visual studio solution (App.Config and Web.Config)
-   so that they are consistent with the Applications parameters
-#> 
+# Update config file for the app
+$configFile = $pwd.Path + "$([IO.Path]::DirectorySeparatorChar)..$([IO.Path]::DirectorySeparatorChar)config.json"
+Write-Host "Updating the sample code ($configFile)"
+$cfg = (Get-Content $configFile | ConvertFrom-json)
+$cfg.azTenantId = $tenantId
+$cfg.azClientId = $clientAadApplication.AppId
+$cfg.azClientSecret = $client_secret
+$cfg.azCertificateName = $certSubject
+$cfg.azCertThumbprint = $certThumbprint
+$cfg.azCertificateLocation = $certLocation.Replace("\", "\\")
+$cfg.azCertificatePrivateKeyLocation = $certPrivateKey.Replace("\", "\\")
+Set-Content -Path $configFile -Value ($cfg | ConvertTo-json)
 
-    # $tenantId is the Active Directory Tenant. This is a GUID which represents the "Directory ID" of the AzureAD tenant
-    # into which you want to create the apps. Look it up in the Azure portal in the "Properties" of the Azure AD.
-
-    # Login to Azure PowerShell (interactive if credentials are not already provided:
-    # you'll need to sign-in with creds enabling your to create apps in the tenant)
-    if (!$Credential -and $TenantId)
-    {
-        $creds = Connect-AzureAD -TenantId $tenantId
-    }
-    else
-    {
-        if (!$TenantId)
-        {
-            $creds = Connect-AzureAD -Credential $Credential
-        }
-        else
-        {
-            $creds = Connect-AzureAD -TenantId $tenantId -Credential $Credential
-        }
-    }
-
-    if (!$tenantId)
-    {
-        $tenantId = $creds.Tenant.Id
-    }
-
-    $tenant = Get-AzureADTenantDetail
-    $tenantName =  ($tenant.VerifiedDomains | Where { $_._Default -eq $True }).Name
-
-    # Get the user running the script
-    $user = Get-AzureADUser -ObjectId $creds.Account.Id
-
-   # Create the client AAD application
-   Write-Host "Creating the AAD application (Verifiable Credentials Node sample)"
-   # Get a 2 years application key for the client Application
-   $pw = ComputePassword
-   $fromDate = [DateTime]::Now;
-   $key = CreateAppKey -fromDate $fromDate -durationInYears 2 -pw $pw
-   $clientAppKey = $pw
-   $clientAadApplication = New-AzureADApplication -DisplayName "Verifiable Credentials Node sample" `
-                                                  -IdentifierUris "https://$tenantName/vcnodesample1" `
-                                                  -PasswordCredentials $key `
-                                                  -PublicClient $False
-
-   $currentAppId = $clientAadApplication.AppId
-   $clientServicePrincipal = New-AzureADServicePrincipal -AppId $currentAppId -Tags {WindowsAzureActiveDirectoryIntegratedApp}
-
-   # add the user running the script as an app owner if needed
-   $owner = Get-AzureADApplicationOwner -ObjectId $clientAadApplication.ObjectId
-   if ($owner -eq $null)
-   { 
-    Add-AzureADApplicationOwner -ObjectId $clientAadApplication.ObjectId -RefObjectId $user.ObjectId
-    Write-Host "'$($user.UserPrincipalName)' added as an application owner to app '$($clientServicePrincipal.DisplayName)'"
-   }
-
-   Write-Host "Done creating the client application (VC Node sample)"
-
-   # URL of the AAD application in the Azure portal
-   # Future? $clientPortalUrl = "https://portal.azure.com/#@"+$tenantName+"/blade/Microsoft_AAD_RegisteredApps/ApplicationMenuBlade/Overview/appId/"+$clientAadApplication.AppId+"/objectId/"+$clientAadApplication.ObjectId+"/isMSAApp/"
-   $clientPortalUrl = "https://portal.azure.com/#blade/Microsoft_AAD_RegisteredApps/ApplicationMenuBlade/CallAnAPI/appId/"+$clientAadApplication.AppId+"/objectId/"+$clientAadApplication.ObjectId+"/isMSAApp/"
-   Add-Content -Value "<tr><td>client</td><td>$currentAppId</td><td><a href='$clientPortalUrl'>VC Node sample</a></td></tr>" -Path createdApps.html
-
-   $requiredResourcesAccess = New-Object System.Collections.Generic.List[Microsoft.Open.AzureAD.Model.RequiredResourceAccess]
-
-   # Add Required Resources Access (from 'client' to 'Verifiable Credential Request Service')
-   Write-Host "Getting access from 'client' to 'Microsoft Graph'"
-   $requiredPermissions = GetRequiredPermissions -applicationDisplayName "Verifiable Credential Request Service" `
-                                                -requiredApplicationPermissions "VerifiableCredential.Create.All";
-
-   $requiredResourcesAccess.Add($requiredPermissions)
-
-
-   Set-AzureADApplication -ObjectId $clientAadApplication.ObjectId -RequiredResourceAccess $requiredResourcesAccess
-   Write-Host "Granted permissions."
-
-   # Update config file for 'client'
-   $dictionary = @{ "<YOUR-AAD-TENANDID>" =  $tenantId; "<YOUR-AAD-CLIENTID-FOR-KEYVAULT-ACCESS>" = $clientAadApplication.AppId; "<YOUR-AAD-CLIENTSECRET-FOR-KEYVAULT-ACCESS>" = $clientAppKey };
-   $configFile = $pwd.Path + "\..\config.json"
-   Write-Host "Updating the sample code ($configFile)"
-   UpdateTextFile -configFilePath $configFile -dictionary $dictionary
-
-   Write-Host ""
-   Write-Host "IMPORTANT: Please follow the instructions below to complete a few manual step(s) in the Azure portal":
-   Write-Host "- For 'client'"
-   Write-Host "  - Navigate to '$clientPortalUrl'"
-   Write-Host "  - Navigate to the API permissions page and click on 'Grant admin consent for $tenantName'"
-
-   Add-Content -Value "</tbody></table></body></html>" -Path createdApps.html  
+# Final notes on steps to complete manually
+Write-Host "IMPORTANT: Please follow the instructions below to complete a few manual step(s) in the Azure portal":
+Write-Host "- For '$appName'"
+Write-Host "  - Navigate to $clientPortalUrl"
+Write-Host "  - Click on 'Grant admin consent for $tenantName' in the API Permissions page"
+if( $ClientCertificate -and !$isMacLinux ) {
+    Write-Host "`n- Certificate needs to be converted from pfx to pem format"
+    Write-Host "  - Start Windows Subsystem for Linux and navigate to the AppCreationScripts folder"
+    Write-Host "  - Make sure you have openssl installed"
+    Write-Host "  - Run 'openssl pkcs12 -in ./aadappcert.pfx -out ./aadappcert.pem' and specify '$appShortName' as password/passphrase"
 }
-
-# Pre-requisites
-if ((Get-Module -ListAvailable -Name "AzureAD") -eq $null) { 
-    Install-Module "AzureAD" -Scope CurrentUser 
-} 
-Import-Module AzureAD
-
-# Run interactively (will ask you for the tenant ID)
-ConfigureApplications -Credential $Credential -tenantId $TenantId

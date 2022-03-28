@@ -15,6 +15,7 @@ const https = require('https')
 const url = require('url')
 const { SSL_OP_COOKIE_EXCHANGE } = require('constants');
 var msal = require('@azure/msal-node');
+var uuid = require('uuid');
 var mainApp = require('./app.js');
 
 var parser = bodyParser.urlencoded({ extended: false });
@@ -36,6 +37,10 @@ issuanceConfig.issuance.manifest = mainApp.config["CredentialManifest"]
 // if there is pin code in the config, but length is zero - remove it. It really shouldn't be there
 if ( issuanceConfig.issuance.pin && issuanceConfig.issuance.pin.length == 0 ) {
   issuanceConfig.issuance.pin = null;
+}
+var apiKey = uuid.v4();
+if ( issuanceConfig.callback.headers ) {
+  issuanceConfig.callback.headers['api-key'] = apiKey;
 }
 
 function requestTrace( req ) {
@@ -100,10 +105,14 @@ mainApp.app.get('/api/issuer/issuance-request', async (req, res) => {
     issuanceConfig.issuance.pin.value = generatePin( issuanceConfig.issuance.pin.length );
   }
   // here you could change the payload manifest and change the firstname and lastname
-  issuanceConfig.issuance.claims.displayName = "Forrest Gump";
-  issuanceConfig.issuance.claims.sponsorName = "Lieutenant Dan";
+  if ( issuanceConfig.issuance.claims ) {
+    issuanceConfig.issuance.claims.given_name = "Megan";
+    issuanceConfig.issuance.claims.family_name = "Bowen";
+  }
 
   console.log( 'VC Client API Request' );
+  var client_api_request_endpoint = `${mainApp.config.msIdentityHostName}${mainApp.config.azTenantId}/verifiablecredentials/request`;
+  console.log( client_api_request_endpoint );
   console.log( issuanceConfig );
 
   var payload = JSON.stringify(issuanceConfig);
@@ -117,7 +126,6 @@ mainApp.app.get('/api/issuer/issuance-request', async (req, res) => {
     }
   };
 
-  var client_api_request_endpoint = `https://beta.did.msidentity.com/v1.0/${mainApp.config.azTenantId}/verifiablecredentials/request`;
   const response = await fetch(client_api_request_endpoint, fetchOptions);
   var resp = await response.json()
   // the response from the VC Request API call is returned to the caller (the UI). It contains the URI to the request which Authenticator can download after
@@ -142,6 +150,12 @@ mainApp.app.post('/api/issuer/issuance-request-callback', parser, async (req, re
   req.on('end', function () {
     requestTrace( req );
     console.log( body );
+    if ( req.headers['api-key'] != apiKey ) {
+      res.status(401).json({
+        'error': 'api-key wrong or missing'
+        });  
+      return; 
+    }
     var issuanceResponse = JSON.parse(body.toString());
     var message = null;
     // there are 2 different callbacks. 1 if the QR code is scanned (or deeplink has been followed)
