@@ -12,7 +12,8 @@ var express = require('express')
 var session = require('express-session')
 var bodyParser = require('body-parser')
 var base64url = require('base64url')
-var fetch = require( 'node-fetch' );
+// mod.cjs
+const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
 var secureRandom = require('secure-random');
 const https = require('https')
 const url = require('url')
