@@ -69,7 +69,7 @@ if ( config.azCertificateName !== '') {
 
 const cca = new msal.ConfidentialClientApplication(msalConfig);
 const msalClientCredentialRequest = {
-  scopes: ["bbb94529-53a3-4be5-a069-7eaf2712b826/.default"],
+  scopes: ["3db474b9-6a0c-4840-96ac-1fceb342124f/.default"],
   skipCache: false, 
 };
 module.exports.msalCca = cca;
