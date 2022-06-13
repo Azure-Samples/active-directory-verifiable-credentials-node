@@ -92,12 +92,12 @@ if ( $ClientSecret ) {
     $client_secret = $appCreds.SecretText
 }
 
-# Add Required Resources Access (from 'client' to 'Verifiable Credential Request Service')
+# Add Required Resources Access (from 'client' to 'Verifiable Credentials Service Request')
 $permissionName = "VerifiableCredential.Create.All"
 Write-Host "Adding API Permission $permissionName"
-$spVCRS = Get-AzADServicePrincipal -DisplayName "Verifiable Credential Request Service"
-$permissionId = ($spVCRS.AppRole | where {$_.DisplayName -eq $permissionName}).Id
-Add-AzADAppPermission -ObjectId $clientAadApplication.Id -ApiId $spVCRS.AppId -PermissionId $permissionId -Type "Role"
+$spVCSR = Get-AzADServicePrincipal -DisplayName "Verifiable Credentials Service Request"
+$permissionId = ($spVCSR.AppRole | where {$_.DisplayName -eq $permissionName}).Id
+Add-AzADAppPermission -ObjectId $clientAadApplication.Id -ApiId $spVCSR.AppId -PermissionId $permissionId -Type "Role"
 
 Write-Host "Done creating the client application ($appName)"
 

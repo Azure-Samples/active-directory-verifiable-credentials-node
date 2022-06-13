@@ -58,13 +58,13 @@ Register an application in Azure Active Directory:
     - You’ll need this key later to configure the sample application. This key value will not be displayed again, nor retrievable by any other means, so record it as soon as it is visible from the Azure portal.
 6.	In the list of pages for the app, select API permissions
     - Click the Add a permission button
-    - Search for APIs in my organization for 3db474b9-6a0c-4840-96ac-1fceb342124f or Verifiable Credential and click the “Verifiable Credential Request Service”
+    - Search for APIs in my organization for 3db474b9-6a0c-4840-96ac-1fceb342124f or Verifiable Credential and click the “Verifiable Credentials Service Request”
     - Click the “Application Permission” and expand “VerifiableCredential.Create.All”
     - Click Grant admin consent for {tenant name} on top of the API/Permission list and click YES. This allows the application to get the correct permissions
 ![Admin concent](ReadmeFiles/AdminConcent.PNG)
 
 ## Setting up and running the sample
-To run the sample, clone the repository, compile & run it. It's callback endpoint must be publically reachable, and for that reason, use `ngrok` as a reverse proxy to reach your app.
+To run the sample, clone the repository, compile & run it. It's callback endpoint must be publically reachable, and for that reason, use a tool like `ngrok` as a reverse proxy to reach your app.
 
 ```Powershell
 git clone https://github.com/Azure-Samples/active-directory-verifiable-credentials-node.git
