@@ -59,9 +59,9 @@ fi
 
 # add permissions
 echo "Assigning permissions"
-vcrsAppId=$(az ad sp list --display-name "Verifiable Credential Request Service" --query "[0].appId" -o tsv)
-vcrsPermissionId=$(az ad sp list --display-name "Verifiable Credential Request Service" --query "[0].appRoles" | grep id | cut -d "\"" -f 4)
-perm=$(az ad app permission add --id $appId --api $vcrsAppId --api-permissions $vcrsPermissionId=Role)
+vcsrAppId=$(az ad sp list --display-name "Verifiable Credentials Service Request" --query "[0].appId" -o tsv)
+vcsrPermissionId=$(az ad sp list --display-name "Verifiable Credentials Service Request" --query "[0].appRoles" | grep id | cut -d "\"" -f 4)
+perm=$(az ad app permission add --id $appId --api $vcsrAppId --api-permissions $vcsrPermissionId=Role)
 
 # updating the sample config file with details of the app we created
 echo "Updating ..\config.json"
