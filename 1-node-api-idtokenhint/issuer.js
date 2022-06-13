@@ -137,8 +137,13 @@ mainApp.app.get('/api/issuer/issuance-request', async (req, res) => {
     resp.pin = issuanceConfig.issuance.pin.value;   // add pin code so browser can display it
   }
   console.log( 'VC Client API Response' );
+  console.log( response.status );
   console.log( resp );  
-  res.status(200).json(resp);       
+  if ( response.status > 299 ) {
+    res.status(400).json( resp.error );  
+} else {
+    res.status(200).json( resp );       
+  }
 })
 /**
  * This method is called by the VC Request API when the user scans a QR code and presents a Verifiable Credential to the service
