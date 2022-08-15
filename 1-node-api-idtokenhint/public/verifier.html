@@ -26,7 +26,6 @@
             </div>
             <a id="deeplink" style="display: none;margin-top: 10px;">Tap to open Authenticator on mobile</a>
             <div id="qrcode" style="text-align: center"></div>
-            <div id="pinCodeText" style="display: none"></div>
 
             <div id="message-wrapper" class="margin-bottom-75 margin-top-75" style="display: none">
                <i class="fas fa-user-check green icon-text-large margin-bottom-25"></i>
@@ -77,15 +76,22 @@
                                     // QR Code scanned
                                     if (respMsg.status == 'request_retrieved') {
                                         document.getElementById('message-wrapper').style.display = "block";
+                                        document.getElementById("qrcode").getElementsByTagName("img")[0].style.opacity = "0.1";
                                         document.getElementById('qrText').style.display = "none";
-                                        document.getElementById('qrcode').style.display = "none";
                                         document.getElementById('message').innerHTML = respMsg.message;
                                     }
                                     
                                     if (respMsg.status == 'presentation_verified') {
+                                        document.getElementById('qrcode').style.display = "none";
                                         document.getElementById('message').innerHTML = respMsg.message;
                                         document.getElementById('payload').innerHTML = "Payload: " + JSON.stringify(respMsg.payload);
                                         document.getElementById('subject').innerHTML = respMsg.firstName +" " + respMsg.lastName +" is a Verifiable Credential Expert";
+                                        clearInterval(checkStatus);
+                                    }
+                                    if (respMsg.status == 'issuance_failed') {
+                                        document.getElementById('qrcode').style.display = "none";
+                                        document.getElementById('message').innerHTML = "Verification error occurred.";
+                                        document.getElementById('payload').innerHTML = "Payload: " + respMsg.payload;
                                         clearInterval(checkStatus);
                                     }
                                 }

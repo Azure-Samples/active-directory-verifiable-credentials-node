@@ -4,20 +4,18 @@ languages:
 - node.js
 - powershell
 products:
-- active-directory
-- verifiable credentials
+- Entra
+- Verified ID
 description: "A code sample demonstrating issuance and verification of verifiable credentials."
 urlFragment: "active-directory-verifiable-credentials-node"
 ---
 # Verifiable Credentials Code Sample
 
-This code sample demonstrates how to use Microsoft's Azure Active Directory Verifiable Credentials preview to issue and consume verifiable credentials. 
+This code sample demonstrates how to use Microsoft's Entra Verified ID to issue and consume verifiable credentials. 
 
 ## About this sample
 
-Welcome to Azure Active Directory Verifiable Credentials. In this sample, we'll teach you to issue your first verifiable credential: a Verified Credential Expert Card. You'll then use this card to prove to a verifier that you are a Verified Credential Expert, mastered in the art of digital credentialing. The sample uses the preview REST API which supports ID Token hints to pass a payload for the verifiable credential.
-
-> **Important**: Azure Active Directory Verifiable Credentials is currently in public preview. This preview version is provided without a service level agreement, and it's not recommended for production workloads. Certain features might not be supported or might have constrained capabilities. For more information, see [Supplemental Terms of Use for Microsoft Azure Previews](https://azure.microsoft.com/support/legal/preview-supplemental-terms/).
+Welcome to Microsoft Entra Verified ID (former Azure Active Directory Verifiable Credentials). In this sample, we'll teach you to issue your first verifiable credential: a Verified Credential Expert Card. You'll then use this card to prove to a verifier that you are a Verified Credential Expert, mastered in the art of digital credentialing. The sample uses the preview REST API which supports ID Token hints to pass a payload for the verifiable credential.
 
 ## Contents
 
@@ -188,7 +186,7 @@ const fetchOptions = {
     'Authorization': `Bearer ${accessToken}`
   }
 };
-var client_api_request_endpoint = `https://beta.did.msidentity.com/v1.0/${mainApp.config.azTenantId}/verifiablecredentials/request`;
+var client_api_request_endpoint = `https://verifiedid.did.msidentity.com/v1.0/verifiableCredentials/createPresentationRequest`;
 const response = await fetch(client_api_request_endpoint, fetchOptions);
 var resp = await response.json()
 ```
