@@ -34,10 +34,10 @@ issuanceConfig.registration.clientName = "Node.js SDK API Issuer";
 // the display and rules file to create the credential can be found in the credentialfiles directory
 // make sure the credentialtype in the issuance payload ma
 issuanceConfig.authority = mainApp.config["IssuerAuthority"]
-issuanceConfig.issuance.manifest = mainApp.config["CredentialManifest"]
+issuanceConfig.manifest = mainApp.config["CredentialManifest"]
 // if there is pin code in the config, but length is zero - remove it. It really shouldn't be there
-if ( issuanceConfig.issuance.pin && issuanceConfig.issuance.pin.length == 0 ) {
-  issuanceConfig.issuance.pin = null;
+if ( issuanceConfig.pin && issuanceConfig.pin.length == 0 ) {
+  issuanceConfig.pin = null;
 }
 var apiKey = uuid.v4();
 if ( issuanceConfig.callback.headers ) {
@@ -102,17 +102,17 @@ mainApp.app.get('/api/issuer/issuance-request', async (req, res) => {
   issuanceConfig.callback.state = id;
   // check if pin is required, if found make sure we set a new random pin
   // pincode is only used when the payload contains claim value pairs which results in an IDTokenhint
-  if ( issuanceConfig.issuance.pin ) {
-    issuanceConfig.issuance.pin.value = generatePin( issuanceConfig.issuance.pin.length );
+  if ( issuanceConfig.pin ) {
+    issuanceConfig.pin.value = generatePin( issuanceConfig.pin.length );
   }
   // here you could change the payload manifest and change the firstname and lastname
-  if ( issuanceConfig.issuance.claims ) {
-    issuanceConfig.issuance.claims.given_name = "Megan";
-    issuanceConfig.issuance.claims.family_name = "Bowen";
+  if ( issuanceConfig.claims ) {
+    issuanceConfig.claims.given_name = "Megan";
+    issuanceConfig.claims.family_name = "Bowen";
   }
 
   console.log( 'VC Client API Request' );
-  var client_api_request_endpoint = `${mainApp.config.msIdentityHostName}${mainApp.config.azTenantId}/verifiablecredentials/request`;
+  var client_api_request_endpoint = `${mainApp.config.msIdentityHostName}verifiableCredentials/createIssuanceRequest`;
   console.log( client_api_request_endpoint );
   console.log( issuanceConfig );
 
@@ -133,8 +133,8 @@ mainApp.app.get('/api/issuer/issuance-request', async (req, res) => {
   // it has scanned the QR code. If the payload requested the VC Request service to create the QR code that is returned as well
   // the javascript in the UI will use that QR code to display it on the screen to the user.            
   resp.id = id;                              // add session id so browser can pull status
-  if ( issuanceConfig.issuance.pin ) {
-    resp.pin = issuanceConfig.issuance.pin.value;   // add pin code so browser can display it
+  if ( issuanceConfig.pin ) {
+    resp.pin = issuanceConfig.pin.value;   // add pin code so browser can display it
   }
   console.log( 'VC Client API Response' );
   console.log( response.status );
@@ -169,7 +169,7 @@ mainApp.app.post('/api/issuer/issuance-request-callback', parser, async (req, re
     // the request will be deleted from the server immediately.
     // That's why it is so important to capture this callback and relay this to the UI so the UI can hide
     // the QR code to prevent the user from scanning it twice (resulting in an error since the request is already deleted)
-    if ( issuanceResponse.code == "request_retrieved" ) {
+    if ( issuanceResponse.requestStatus == "request_retrieved" ) {
       message = "QR Code is scanned. Waiting for issuance to complete...";
       mainApp.sessionStore.get(issuanceResponse.state, (error, session) => {
         var sessionData = {
@@ -183,7 +183,7 @@ mainApp.app.post('/api/issuer/issuance-request-callback', parser, async (req, re
       })      
     }
 
-    if ( issuanceResponse.code == "issuance_successful" ) {
+    if ( issuanceResponse.requestStatus == "issuance_successful" ) {
       message = "Credential successfully issued";
       mainApp.sessionStore.get(issuanceResponse.state, (error, session) => {
         var sessionData = {
@@ -197,7 +197,7 @@ mainApp.app.post('/api/issuer/issuance-request-callback', parser, async (req, re
       })      
     }
 
-    if ( issuanceResponse.code == "issuance_error" ) {
+    if ( issuanceResponse.requestStatus == "issuance_error" ) {
       mainApp.sessionStore.get(issuanceResponse.state, (error, session) => {
         var sessionData = {
           "status" : "issuance_error",

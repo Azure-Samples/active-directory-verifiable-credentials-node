@@ -94,8 +94,8 @@
                                     respMsg = JSON.parse(response);
                                     // QR Code scanned, show pincode if pincode is required
                                     if (respMsg.status == 'request_retrieved') {
+                                        document.getElementById("qrcode").getElementsByTagName("img")[0].style.opacity = "0.1";
                                         document.getElementById('qrText').style.display = "none";
-                                        document.getElementById('qrcode').style.display = "none";
                                         if (respMsg.pin) {
                                             document.getElementById('pinCodeText').style.display = "visible";
                                         }
@@ -104,11 +104,13 @@
                                         //document.getElementById('message').innerHTML = respMsg.message;
                                     }
                                     if (respMsg.status == 'issuance_successful') {
+                                        document.getElementById('qrcode').style.display = "none";
                                         document.getElementById('pinCodeText').style.display = "none";
                                         document.getElementById('message').innerHTML = respMsg.message;
                                         clearInterval(checkStatus);
                                     }
                                     if (respMsg.status == 'issuance_error') {
+                                        document.getElementById('qrcode').style.display = "none";
                                         document.getElementById('pinCodeText').style.display = "none";
                                         document.getElementById('message').innerHTML = "Issuance error occurred, did you enter the wrong pincode? Please refresh the page and try again.";
                                         document.getElementById('payload').innerHTML = "Payload: " + respMsg.payload;
