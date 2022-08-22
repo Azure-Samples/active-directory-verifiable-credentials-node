@@ -191,6 +191,19 @@ const response = await fetch(client_api_request_endpoint, fetchOptions);
 var resp = await response.json()
 ```
 
+## Deploying the sample to Azure AppServices
+If you deploy the sample to **Azure AppServices**, as an alternative to using [ngrok](https://docs.microsoft.com/en-us/azure/active-directory/verifiable-credentials/verifiable-credentials-faq#i-can-not-use-ngrok-what-do-i-do), you need to update the files `config.json`, `issuance_request_config.json` and `presentation_request_config.json` with your changes before you do **Deploy To Web App** in VSCode. After you have deployed your sample app, AppServices starts it via invoking the `npm start` command, which means if those files contain the right settings, your app will start successfully. When you create an Azure AppService instance, you should select **Runtime stack** = `Node` and **OS** = `Linux` and select the same region that you have your Azure KeyVault deployed to.
+
+**package.json**
+```json
+  ...
+  "scripts": {
+    "start": "node app.js ./config.json ./issuance_request_config.json ./presentation_request_config.json",
+  ...
+```
+
+If the app doesn't start, if you view the logs in AppServices LogStream, you may see the problem. See [docs](https://docs.microsoft.com/en-us/azure/app-service/configure-language-python#customize-build-automation).
+
 ## Troubleshooting
 
 ### Did you forget to provide admin consent? This is needed for confidential apps
