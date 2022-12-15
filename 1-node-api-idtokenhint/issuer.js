@@ -103,7 +103,12 @@ mainApp.app.get('/api/issuer/issuance-request', async (req, res) => {
   // check if pin is required, if found make sure we set a new random pin
   // pincode is only used when the payload contains claim value pairs which results in an IDTokenhint
   if ( issuanceConfig.pin ) {
-    issuanceConfig.pin.value = generatePin( issuanceConfig.pin.length );
+    // don't use pin if user is on mobile device
+    if ( req.headers["user-agent"].includes("Android") || req.headers["user-agent"].includes('iPhone')) {
+      delete issuanceConfig.pin;
+    } else {
+      issuanceConfig.pin.value = generatePin( issuanceConfig.pin.length );
+    }
   }
   // here you could change the payload manifest and change the firstname and lastname
   if ( issuanceConfig.claims ) {
