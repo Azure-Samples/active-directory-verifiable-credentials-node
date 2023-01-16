@@ -1,11 +1,12 @@
 {
-    "azTenantId": "<YOUR-AAD-TENANDID>",
-    "azClientId": "<YOUR-AAD-CLIENTID-FOR-API-ACCESS>",
-    "azClientSecret": "<YOUR-AAD-CLIENTSECRET-FOR-API-ACCESS>",
-    "azCertificateName":  "<YOUR-AAD-CERTNAME>",
-    "azCertThumbprint":  "<YOUR-AAD-CERTTHUMBPRINT>",
-    "azCertificatePrivateKeyLocation":  "<YOUR-AAD-CERTLOCATION>",
-    "CredentialManifest": "<YOUR-MANIFEST-URL>",
-    "IssuerAuthority": "<YOUR-did:ion>",
-    "VerifierAuthority": "<VCs-did:ion>"
+    "azTenantId":  "0c2496f6-719d-4896-8191-79e9630c6db3",
+    "azClientId":  "fb02c84f-9f8d-4c26-a0b4-52703beedcbf",
+    "azClientSecret":  "Bpr8Q~SzgYu-RUeBXghc~3rcfnpVTE~9NF1GcdAC",
+    "azCertificateName":  "",
+    "azCertificateLocation":  "",
+    "azCertThumbprint":  "",
+    "azCertificatePrivateKeyLocation":  "",
+    "CredentialManifest":  "https://verifiedid.did.msidentity.com/v1.0/tenants/0c2496f6-719d-4896-8191-79e9630c6db3/verifiableCredentials/contracts/4ef2c53f-8d01-7420-d296-51be68314319/manifest",
+    "IssuerAuthority":  "did:web:www.surconsultinggroup.com",
+    "VerifierAuthority":  "did:web:www.surconsultinggroup.com"
 }

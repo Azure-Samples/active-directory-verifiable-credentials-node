@@ -40,8 +40,8 @@ To call the VC Client API to start the issuance process, the VC Request API need
     "length": 6
   },
   "claims": {
-    "firstName": "Megan",
-    "lastName": "Bowen"
+    "firstName": "Hana",
+    "lastName": "Awad"
   }
 }
 ```
@@ -182,8 +182,8 @@ Once the VC is verified, you get a second, more complete, callback which contain
         "issuer": "did:ion of the issuer of this verifiable credential ",
         "type": [ "VerifiableCredential", "your credentialType" ],
         "claims": {
-            "lastName":"Bowen",
-            "firstName":"Megan" 
+            "lastName":"Awad",
+            "firstName":"Hana" 
         },
         "credentialState": {
           "revocationStatus": "VALID"
