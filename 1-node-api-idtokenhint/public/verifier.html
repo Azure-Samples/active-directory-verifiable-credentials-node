@@ -85,8 +85,9 @@
                                         document.getElementById('qrcode').style.display = "none";
                                         document.getElementById('message').innerHTML = respMsg.message;
                                         document.getElementById('payload').innerHTML = "Payload: " + JSON.stringify(respMsg.payload);
-                                        document.getElementById('subject').innerHTML = respMsg.firstName +" " + respMsg.lastName +" is a Verifiable Credential Expert";
+                                        document.getElementById('subject').innerHTML = respMsg.firstName +" " + respMsg.lastName +" is a Verified User. Redirecting to dApp Store.";
                                         clearInterval(checkStatus);
+                                        location.href = "https://master.d14joljwgnf4g9.amplifyapp.com/";
                                     }
                                     if (respMsg.status == 'issuance_failed') {
                                         document.getElementById('qrcode').style.display = "none";

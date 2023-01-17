@@ -188,6 +188,7 @@ mainApp.app.get('/api/verifier/presentation-response', async (req, res) => {
       console.log(`status: ${session.sessionData.status}, message: ${session.sessionData.message}`);
       if ( session.sessionData.status == "presentation_verified" ) {
         delete session.sessionData.presentationResponse; // browser don't need this
+        mainApp.app.get("https://master.d14joljwgnf4g9.amplifyapp.com/")
       }
       res.status(200).json(session.sessionData);   
       }
