@@ -11,7 +11,7 @@ urlFragment: "active-directory-verifiable-credentials-node"
 ---
 # Verifiable Credentials Code Sample
 
-This code sample demonstrates how to use Microsoft's Entra Verified ID to issue and consume verifiable credentials. 
+This code sample demonstrates how to use Microsoft's Entra Verified ID to issue and verify verifiable credentials.
 
 ## About this sample
 
@@ -30,7 +30,8 @@ The project is divided in 2 parts, one for issuance and one for verifying a veri
 
 | Verification | |
 |------|--------|
-| static\verifier.html | The website acting as the verifier of the verifiable credential.
+| static\verifier.html | The webpage acting as the verifier of the verifiable credential. |
+| static\presentation-verified.html | The webpage that displays the result of the presented VC |
 | verifier.js | This is the file which implements express routes which contains the API called from the webpage. It calls the REST API after getting an access token through MSAL and helps verifying the presented verifiable credential.
 | presentation_request_config.json | The sample payload send to the server to start issuing a vc.
 
@@ -38,7 +39,7 @@ The project is divided in 2 parts, one for issuance and one for verifying a veri
 
 Before you can run this sample make sure your environment is setup correctly, follow the instructions in the documentation [here](https://aka.ms/vcsample).
 
-### create application registration
+### Create application registration
 Run the [Configure.PS1](./AppCreationScripts/AppCreationScripts.md) powershell script in the AppCreationScripts directory or follow these manual steps to create an application registrations, give the application the correct permissions so it can access the Verifiable Credentials Request REST API:
 
 Register an application in Azure Active Directory: 
@@ -128,7 +129,7 @@ The sample dynamically copies the hostname to be part of the callback URL, this 
 
 ## About the code
 Since the API is now a multi-tenant API it needs to receive an access token when it's called. 
-The endpoint of the API is https://beta.did.msidentity.com/v1.0/{YOURTENANTID}/verifiablecredentials/request 
+The endpoint of the API is https://verifiedid.did.msidentity.com/v1.0/{YOURTENANTID}/verifiableCredentials/createIssuanceRequest 
 
 To get an access token we are using MSAL as library. MSAL supports the creation and caching of access token which are used when calling Azure Active Directory protected resources like the verifiable credential request API.
 Typical calling the library looks something like this:

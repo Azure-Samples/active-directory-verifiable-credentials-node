@@ -107,3 +107,4 @@ dist
 config.[Dd]evelopment.json
 run.[Dd]evelopment.*
 docker-run.[Dd]evelopment.*
+.dev-config/

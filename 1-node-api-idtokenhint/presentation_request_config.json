@@ -12,12 +12,10 @@
     "clientName": "Veriable Credential Expert Verifier",
     "purpose": "So we can see that you a veriable credentials expert"
   },
-  
-  "includeReceipt": false,
+  "includeReceipt": true,
   "requestedCredentials": [
     {
       "type": "VerifiedCredentialExpert",
-      "purpose": "So we can see that you a veriable credentials expert",
       "acceptedIssuers": [ "did:ion: copied from your VC portal in this sample the code copies it from CONFIG.JSON" ]
     }
   ],
