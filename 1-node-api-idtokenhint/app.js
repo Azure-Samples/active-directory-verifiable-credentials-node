@@ -18,6 +18,7 @@ const { SSL_OP_COOKIE_EXCHANGE } = require('constants');
 var msal = require('@azure/msal-node');
 const fs = require('fs');
 const crypto = require('crypto');
+var uuid = require('uuid');
 
 ///////////////////////////////////////////////////////////////////////////////////////
 // config file can come from command line, env var or the default
@@ -30,6 +31,34 @@ if (!config.azTenantId) {
   throw new Error('The config.json file is missing.')
 }
 module.exports.config = config;
+
+config.apiKey = uuid.v4();
+///////////////////////////////////////////////////////////////////////////////////////
+// Check that the manifestURL have the matching tenantId with the config file
+var manifestUrl = config.CredentialManifest.split("/")[5];
+if ( config.azTenantId != manifestUrl ) {
+  throw new Error( `TenantId in ManifestURL ${manifestUrl}. does not match tenantId in config file ${config.azTenantId}` );
+}
+
+// Check that the issuer in the config file match the manifest
+fetch( config.CredentialManifest, { method: 'GET'} )
+  .then(res => res.json())
+  .then((resp) => {
+    if ( !resp.token ) {
+      throw new Error( `Could not retrieve manifest from URL ${config.CredentialManifest}` );
+    }
+    config.manifest = JSON.parse(base64url.decode(resp.token.split(".")[1]));
+    // if you don't specify IssuerAuthority or VerifierAuthority in the config file, use the issuer DID from the manifest
+    if ( config.IssuerAuthority == "" ) {
+      config.IssuerAuthority = config.manifest.iss;
+    }
+    if ( config.VerifierAuthority == "" ) {
+      config.VerifierAuthority = config.manifest.iss;
+    }
+    if ( config.manifest.iss != config.IssuerAuthority ) {
+      throw new Error( `Wrong IssuerAuthority in config file ${config.IssuerAuthority}. Issuer in manifest is ${config.manifest.iss}` );
+    }
+  }); 
 
 ///////////////////////////////////////////////////////////////////////////////////////
 // MSAL
@@ -77,17 +106,36 @@ module.exports.msalClientCredentialRequest = msalClientCredentialRequest;
 
 config.msIdentityHostName = "https://verifiedid.did.msidentity.com/v1.0/";
 
+///////////////////////////////////////////////////////////////////////////////////////
+// check that we a) can acquire an access_token and b) that it has the needed permission for this sample
+cca.acquireTokenByClientCredential(msalClientCredentialRequest).then((result) => {
+  if ( !result.accessToken ) {
+    throw new Error( `Could not acquire access token. Check your configuration for tenant ${config.azTenantId} and clientId ${config.azClientId}` );
+  } else {
+    console.log( `access_token: ${result.accessToken}` ); 
+    var accessToken = JSON.parse(base64url.decode(result.accessToken.split(".")[1]));
+    if ( accessToken.roles != "VerifiableCredential.Create.All" ) {
+      throw new Error( `Access token do not have the required scope 'VerifiableCredential.Create.All'.` );  
+    }
+  }
+}).catch((error) => {
+    console.log(error);
+    throw new Error( `Could not acquire access token. Check your configuration for tenant ${config.azTenantId} and clientId ${config.azClientId}` );
+  });
+
+ ///////////////////////////////////////////////////////////////////////////////////////
 // Check if it is an EU tenant and set up the endpoint for it
 fetch( `https://login.microsoftonline.com/${config.azTenantId}/v2.0/.well-known/openid-configuration`, { method: 'GET'} )
-  .then(res => res.json())
-  .then((resp) => {
-    console.log( `tenant_region_scope = ${resp.tenant_region_scope}`);
-    config.tenant_region_scope = resp.tenant_region_scope;
-    // Check that the Credential Manifest URL is in the same tenant Region and throw an error if it's not
-    if ( !config.CredentialManifest.startsWith(config.msIdentityHostName) ) {
-      throw new Error( `Error in config file. CredentialManifest URL configured for wrong tenant region. Should start with: ${config.msIdentityHostName}` );
-    }
-  }); 
+.then(res => res.json())
+.then((resp) => {
+  console.log( `tenant_region_scope = ${resp.tenant_region_scope}`);
+  config.tenant_region_scope = resp.tenant_region_scope;
+  // Check that the Credential Manifest URL is in the same tenant Region and throw an error if it's not
+  if ( !config.CredentialManifest.startsWith(config.msIdentityHostName) ) {
+    throw new Error( `Error in config file. CredentialManifest URL configured for wrong tenant region. Should start with: ${config.msIdentityHostName}` );
+  }
+}); 
+
 ///////////////////////////////////////////////////////////////////////////////////////
 // Main Express server function
 // Note: You'll want to update port values for your setup.
@@ -136,7 +184,12 @@ app.get("/echo",
             'api': req.protocol + '://' + req.hostname + req.originalUrl,
             'Host': req.hostname,
             'x-forwarded-for': req.headers['x-forwarded-for'],
-            'x-original-host': req.headers['x-original-host']
+            'x-original-host': req.headers['x-original-host'],
+            'IssuerAuthority': config.IssuerAuthority,
+            'VerifierAuthority': config.VerifierAuthority,
+            'manifestURL': config.CredentialManifest,
+            'clientId': config.azClientId,
+            'configFile': configFile
             });
     }
 );

@@ -16,7 +16,6 @@ const https = require('https')
 const url = require('url')
 const { SSL_OP_COOKIE_EXCHANGE } = require('constants');
 var msal = require('@azure/msal-node');
-var uuid = require('uuid');
 var mainApp = require('./app.js');
 
 var parser = bodyParser.urlencoded({ extended: false });
@@ -29,7 +28,7 @@ if ( !requestConfigFile ) {
   requestConfigFile = process.env.ISSUANCEFILE || './issuance_request_config.json';
 }
 var issuanceConfig = require( requestConfigFile );
-issuanceConfig.registration.clientName = "Node.js SDK API Issuer";
+issuanceConfig.registration.clientName = "Node.js Verified ID sample";
 // get the manifest from config.json, this is the URL to the credential created in the azure portal. 
 // the display and rules file to create the credential can be found in the credentialfiles directory
 // make sure the credentialtype in the issuance payload ma
@@ -39,10 +38,11 @@ issuanceConfig.manifest = mainApp.config["CredentialManifest"]
 if ( issuanceConfig.pin && issuanceConfig.pin.length == 0 ) {
   issuanceConfig.pin = null;
 }
-var apiKey = uuid.v4();
 if ( issuanceConfig.callback.headers ) {
-  issuanceConfig.callback.headers['api-key'] = apiKey;
+  issuanceConfig.callback.headers['api-key'] = mainApp.config["apiKey"];
 }
+
+console.log( `api-key: ${mainApp.config["apiKey"]}` );
 
 function requestTrace( req ) {
   var dateFormatted = new Date().toISOString().replace("T", " ");
@@ -93,6 +93,7 @@ mainApp.app.get('/api/issuer/issuance-request', async (req, res) => {
   }
   console.log( `accessToken: ${accessToken}` );
 
+  issuanceConfig.authority = mainApp.config["IssuerAuthority"]
   // modify the callback method to make it easier to debug 
   // with tools like ngrok since the URI changes all the time
   // this way you don't need to modify the callback URL in the payload every time
@@ -112,11 +113,15 @@ mainApp.app.get('/api/issuer/issuance-request', async (req, res) => {
   }
   // here you could change the payload manifest and change the firstname and lastname
   if ( issuanceConfig.claims ) {
-    issuanceConfig.claims.given_name = "Megan";
-    issuanceConfig.claims.family_name = "Bowen";
+    if ( issuanceConfig.claims.given_name ) {
+      issuanceConfig.claims.given_name = "Megan";
+    }
+    if ( issuanceConfig.claims.family_name ) {
+      issuanceConfig.claims.family_name = "Bowen";
+    }
   }
 
-  console.log( 'VC Client API Request' );
+  console.log( 'Request Service API Request' );
   var client_api_request_endpoint = `${mainApp.config.msIdentityHostName}verifiableCredentials/createIssuanceRequest`;
   console.log( client_api_request_endpoint );
   console.log( issuanceConfig );
@@ -161,64 +166,56 @@ mainApp.app.post('/api/issuer/issuance-request-callback', parser, async (req, re
   req.on('end', function () {
     requestTrace( req );
     console.log( body );
-    if ( req.headers['api-key'] != apiKey ) {
-      res.status(401).json({
-        'error': 'api-key wrong or missing'
-        });  
+    // the api-key is set at startup in app.js. If not present in callback, the call should be rejected
+    if ( req.headers['api-key'] != mainApp.config["apiKey"] ) {
+      res.status(401).json({'error': 'api-key wrong or missing'});  
       return; 
     }
     var issuanceResponse = JSON.parse(body.toString());
-    var message = null;
-    // there are 2 different callbacks. 1 if the QR code is scanned (or deeplink has been followed)
-    // Scanning the QR code makes Authenticator download the specific request from the server
-    // the request will be deleted from the server immediately.
-    // That's why it is so important to capture this callback and relay this to the UI so the UI can hide
-    // the QR code to prevent the user from scanning it twice (resulting in an error since the request is already deleted)
-    if ( issuanceResponse.requestStatus == "request_retrieved" ) {
-      message = "QR Code is scanned. Waiting for issuance to complete...";
-      mainApp.sessionStore.get(issuanceResponse.state, (error, session) => {
-        var sessionData = {
-          "status" : "request_retrieved",
-          "message": message
+    var cacheData;
+    switch ( issuanceResponse.requestStatus ) {
+      // this callback signals that the request has been retrieved (QR code scanned, etc)
+      case "request_retrieved":
+        cacheData = {
+          "status": issuanceResponse.requestStatus,
+          "message": "QR Code is scanned. Waiting for validation..."
         };
-        session.sessionData = sessionData;
-        mainApp.sessionStore.set( issuanceResponse.state, session, (error) => {
-          res.send();
-        });
-      })      
-    }
-
-    if ( issuanceResponse.requestStatus == "issuance_successful" ) {
-      message = "Credential successfully issued";
-      mainApp.sessionStore.get(issuanceResponse.state, (error, session) => {
-        var sessionData = {
-          "status" : "issuance_successful",
-          "message": message
+      break;
+      // this callback signals that issuance of the VC was successful and the VC is now in the wallet
+      case "issuance_successful":
+        var cacheData = {
+          "status" : issuanceResponse.requestStatus,
+          "message": "Credential successfully issued"
         };
-        session.sessionData = sessionData;
-        mainApp.sessionStore.set( issuanceResponse.state, session, (error) => {
-          res.send();
-        });
-      })      
-    }
-
-    if ( issuanceResponse.requestStatus == "issuance_error" ) {
-      mainApp.sessionStore.get(issuanceResponse.state, (error, session) => {
-        var sessionData = {
-          "status" : "issuance_error",
+      break;
+      // this callback signals that issuance did not complete. It could be for technical reasons or that the user didn't accept it
+      case "issuance_error":
+        var cacheData = {
+          "status" : issuanceResponse.requestStatus,
           "message": issuanceResponse.error.message,
-          "payload" :issuanceResponse.error.code
+          "payload": issuanceResponse.error.code
         };
-        session.sessionData = sessionData;
+      break;
+      default:
+        console.log( `400 - Unsupported requestStatus: ${issuanceResponse.requestStatus}` );
+        res.status(400).json({'error': `Unsupported requestStatus: ${issuanceResponse.requestStatus}`});      
+        return;
+    }
+    // store the session state so the UI can pick it up and progress
+    mainApp.sessionStore.get( issuanceResponse.state, (error, session) => {
+      if ( session ) {
+        session.sessionData = cacheData;
         mainApp.sessionStore.set( issuanceResponse.state, session, (error) => {
+          console.log( "200 - OK");
           res.send();
         });
-      })      
-    }
-    
-    res.send()
+      } else {
+        console.log( `400 - Unknown state: ${issuanceResponse.state}` );
+        res.status(400).json({'error': `Unknown state: ${issuanceResponse.state}`});      
+        return;
+      }
+    })      
   });  
-  res.send()
 })
 /**
  * this function is called from the UI polling for a response from the AAD VC Service.
@@ -230,9 +227,17 @@ mainApp.app.get('/api/issuer/issuance-response', async (req, res) => {
   requestTrace( req );
   mainApp.sessionStore.get( id, (error, session) => {
     if (session && session.sessionData) {
-      console.log(`status: ${session.sessionData.status}, message: ${session.sessionData.message}`);
+      console.log(`200 - status: ${session.sessionData.status}, message: ${session.sessionData.message}`);
       res.status(200).json(session.sessionData);   
-      }
+    } else {
+      console.log( `400 - Unknown state: ${id}` );
+      res.status(400).json({'error': `Unknown state: ${id}`});      
+    }
   })
 })
 
+mainApp.app.get('/api/issuer/get-manifest', async (req, res) => {
+  var id = req.query.id;
+  requestTrace( req );
+  res.status(200).json(mainApp.config["manifest"]);   
+})

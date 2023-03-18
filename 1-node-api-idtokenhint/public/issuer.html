@@ -1,11 +1,12 @@
-﻿<!-- Copyright (c) Microsoft Corporation. All rights reserved.
+﻿<!DOCTYPE html>
+<!-- Copyright (c) Microsoft Corporation. All rights reserved.
      Licensed under the MIT License. -->
 
 <html lang="en">
 
     <head>
         <meta charset="utf-8">
-        <title>Verifiable Credential Expert Request API Sample - Issuer</title>
+        <title>Verifiable Credentials Request API Sample - Issuer</title>
         <meta name="description" content="Verified Credentials Expert">
         <meta name="author" content="Microsoft">
         <link rel="stylesheet" href="styles.css">
@@ -15,14 +16,15 @@
     <body>
         <div id="wrap">
             <div style="text-align: center;">
-                <img src="VerifiedCredentialExpert-icon.png" height=200px; />
-                <h1>Verifiable Credential Expert Issuance</h1>
+                <img id="logo" src="VerifiedCredentialExpert-icon.png" height=200px; />
+                <h1 id="idTitle">Verifiable Credential Issuance</h1>
+                <h2 id="idSubTitle"></h2>
         
             <button type="button" id="sign-in" class="button">GET CREDENTIAL</button>
             <div id="qrText"  style="display:none;">
                 <p class="small-text">
                     <img src="authenticator-icon.png" alt="Authenticator icon" class="icon-small"><br>
-                    Scan with Microsoft Authenticator
+                    Scan with Microsoft Authenticator or Custom Wallet
                 </p>
             </div>
             <a id="deeplink" style="display: none;margin-top: 10px;">Tap to open Authenticator on mobile</a>
@@ -41,10 +43,10 @@
                 var signIn = document.getElementById('sign-in');
                 var signOut = document.getElementById('sign-out');
                 var display = document.getElementById('display');
-                var qrcode = new QRCode("qrcode", { width: 300, height: 300 });
+                var qrcode = new QRCode("qrcode", { width: 200, height: 200 });
                 var respIssuanceReq = null;
                 signIn.addEventListener('click', () => {
-                    fetch('/api/issuer/issuance-request')
+                    fetch('api/issuer/issuance-request')
                     .then(function(response) {
                         response.text()
                         .catch(error => displayMessage(error) )
@@ -100,8 +102,6 @@
                                             document.getElementById('pinCodeText').style.display = "visible";
                                         }
                                         displayMessage( respMsg.message );
-                                        //document.getElementById('message-wrapper').style.display = "block";
-                                        //document.getElementById('message').innerHTML = respMsg.message;
                                     }
                                     if (respMsg.status == 'issuance_successful') {
                                         document.getElementById('qrcode').style.display = "none";
@@ -120,6 +120,38 @@
                             })
                     }, 2500);
                 }
+
+                fetch('api/issuer/get-manifest')
+                .then(function(response) {
+                    response.text()
+                    .catch(error => displayMessage(error) )
+                    .then(function(message) {
+                        var manifest = JSON.parse(message);
+                        document.getElementById('idTitle').innerHTML = "Issuance of " + manifest.display.card.title + " by " + manifest.display.card.issuedBy;
+                        document.getElementById('idSubTitle').innerHTML = manifest.display.card.description;
+                        document.getElementById('logo').src = manifest.display.card.logo.uri;
+                    }).catch(error => { console.log(error.message); })
+                }).catch(error => { console.log(error.message); })
+
+                function parseParms(str) {
+                    var pieces = str.split("&"), data = {}, i, parts;
+                    for (i = 0; i < pieces.length; i++) {
+                        parts = pieces[i].split("=");
+                        if (parts.length < 2) {
+                            parts.push("");
+                        }
+                        data[decodeURIComponent(parts[0])] = decodeURIComponent(parts[1]);
+                    }
+                    return data;
+                }
+                
+                window.onload = function() {
+                    var autoclick = parseParms(document.location.search.substring(1)).autoclick;
+                    if ( autoclick ) {
+                        document.getElementById('sign-in').click();
+                    } 
+                }
+
             </script>
             </div>
             </div>
