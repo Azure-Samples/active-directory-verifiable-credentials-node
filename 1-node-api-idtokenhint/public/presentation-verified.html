@@ -117,6 +117,15 @@
                         }
                         var vcSubject = respMsg.subject.split(":");
                         addTableRow( tbodyRef, "subject", vcSubject[0] + ":" + vcSubject[1] + vcSubject[2] + "...");
+                        if (respMsg.revocationStatus) {
+                            addTableRow(tbodyRef, "revocationStatus", respMsg.revocationStatus);
+                        }
+                        if (respMsg.domainValidation) {
+                            addTableRow(tbodyRef, "domainValidation url", respMsg.domainValidation);
+                        }
+                        if (respMsg.matchConfidenceScore) {
+                            addTableRow(tbodyRef, "faceCheck matchConfidenceScore", respMsg.matchConfidenceScore);
+                        }        
                     }
                 }
                 function getPresentationResult( requestId ) {

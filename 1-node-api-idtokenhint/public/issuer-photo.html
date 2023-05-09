@@ -18,6 +18,12 @@
                 <img id="logo" src="VerifiedCredentialExpert-icon.png" height=200px; />
                 <h1 id="idTitle">Verifiable Credential Issuance</h1>
                 <h2 id="idSubTitle"></h2>
+                <p>
+                    Issuance of a verifiable credential that contains a photo of you. 
+                    Either upload a photo via 'Choose File' or take a selfie of your self here in the browser.
+                    For selfie, align face in camera, then click the camera to snap a selfie. Repeat until satisfied.
+                    The photo is not persisted anywhere and is just added to the credential you will have in the Authenticator.
+                </p>
         
             <button type="button" id="sign-in" class="button">GET CREDENTIAL</button>
             <div id="qrText"  style="display:none;">
@@ -37,6 +43,16 @@
                <div id="payload"></div>
             </div>
 
+            <button type="button" id="open-camera" class="button">TAKE SELFIE</button>
+            <button type="button" id="click-camera" class="button" style="display:none;background-image:url(camera-icon.png);height:42px;width:70px"></button>
+            <input type='file' id="imageUpload" accept="image/*" class="button" />
+            <br>
+            <br/>
+            <video id="video" width="320" height="240" autoplay style="display:none"></video>
+            <div id="dataurl-container">
+                <canvas id="canvas" width="180" height="240" style="display:inline-block"></canvas>
+            </div>
+
             <script src="qrcode.min.js"></script>
             <script>
                 var signIn = document.getElementById('sign-in');
@@ -44,7 +60,13 @@
                 var display = document.getElementById('display');
                 var qrcode = new QRCode("qrcode", { width: 200, height: 200 });
                 var respIssuanceReq = null;
+
                 signIn.addEventListener('click', () => {
+                    video.style.display = 'none';
+                    takePhoto.style.display = "none";
+                    canvas.style.display = "none";
+                    openCamera.style.display = "none";
+
                     fetch('api/issuer/issuance-request')
                     .then(function(response) {
                         response.text()
@@ -71,9 +93,7 @@
                                 }
                             }
                         }).catch(error => { console.log(error.message); })
-                    }).catch(error => { console.log(error.message); })
-
-                    
+                    }).catch(error => { console.log(error.message); })                    
                 });
 
                 function displayMessage(msg) {
@@ -164,6 +184,8 @@
                     }).catch(error => { console.log(error.message); })    
                 }
 
+                let imageUpload = document.getElementById('imageUpload');
+                let uploadPhoto = document.querySelector("#upload-photo");
                 let openCamera = document.querySelector("#open-camera");
                 let takePhoto = document.querySelector("#click-camera");
                 let video = document.querySelector("#video");
@@ -187,15 +209,52 @@
                 });
 
                 takePhoto.addEventListener('click', async function() {
-                    //canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+                    canvas.height = 240;
+                    canvas.with = 180;
                     canvas.getContext('2d').drawImage(video, 180, 120, 320, 420, 0, 0, canvas.width, canvas.height);
                     let image_data_url = canvas.toDataURL('image/jpeg');                    
                     postPhoto( image_data_url );
-                    //dataurl.value = image_data_url;
                     dataurl_container.style.display = 'inline-block';
                 });
 
-            </script>
+                imageUpload.addEventListener('change', function(e) {
+                    if (e.target.files) {
+                        let imageFile = e.target.files[0]; //here we get the image file
+                        var reader = new FileReader();
+                        reader.readAsDataURL(imageFile);
+                        reader.onloadend = function (e) {
+                            var imageObj = new Image(); // Creates image object
+                            imageObj.src = e.target.result; // Assigns converted image to image object
+                            imageObj.onload = function(ev) {
+                                var imgWidth = imageObj.naturalWidth;
+                                var screenWidth  = canvas.width;
+                                var scaleX = 1;
+                                if (imgWidth > screenWidth)
+                                    scaleX = screenWidth/imgWidth;
+                                var imgHeight = imageObj.naturalHeight;
+                                var screenHeight = canvas.height;
+                                var scaleY = 1;
+                                if (imgHeight > screenHeight)
+                                    scaleY = screenHeight/imgHeight;
+                                var scale = scaleY;
+                                if (scaleX < scaleY)
+                                    scale = scaleX;
+                                if (scale < 1) {
+                                    imgHeight = imgHeight*scale;
+                                    imgWidth = imgWidth*scale;          
+                                }                            
+                                canvas.height = imgHeight;
+                                canvas.width = imgWidth;
+                                canvas.getContext('2d').drawImage(imageObj, 0, 0, imageObj.naturalWidth, imageObj.naturalHeight, 0,0, imgWidth, imgHeight);
+                                let image_data_url = canvas.toDataURL('image/jpeg');                    
+                                postPhoto( image_data_url );
+                                dataurl_container.style.display = 'inline-block';
+                            }
+                        }
+                    }
+                });
+
+                </script>
             </div>
         </div>
     </body>

@@ -34,6 +34,10 @@ issuanceConfig.registration.clientName = "Node.js Verified ID sample";
 // make sure the credentialtype in the issuance payload ma
 issuanceConfig.authority = mainApp.config["IssuerAuthority"]
 issuanceConfig.manifest = mainApp.config["CredentialManifest"]
+if ( mainApp.config["CredentialType"] ) {
+  issuanceConfig.type = mainApp.config["CredentialType"]
+}
+
 // if there is pin code in the config, but length is zero - remove it. It really shouldn't be there
 if ( issuanceConfig.pin && issuanceConfig.pin.length == 0 ) {
   issuanceConfig.pin = null;
@@ -59,24 +63,39 @@ function generatePin( digits ) {
   var number = Math.floor( Math.random() * (max - min + 1) ) + min;
   return ("" + number).substring(add); 
 }
+
+function getSessionData( id, callback ) {
+  mainApp.sessionStore.get( id, (error, session) => {
+    callback(session);
+  });
+}
+function getSessionDataWrapper( id ) {
+  return new Promise((resolve, reject) => {
+    getSessionData(id, (goodResponse) => {
+      resolve(goodResponse);
+    }, (badResponse) => {
+      reject(badResponse);
+    });
+  });
+}
 /**
  * This method is called from the UI to initiate the issuance of the verifiable credential
  */
 mainApp.app.get('/api/issuer/issuance-request', async (req, res) => {
   requestTrace( req );
   var id = req.session.id;
+
+  var photo = null;
   // prep a session state of 0
-  mainApp.sessionStore.get( id, (error, session) => {
-    var sessionData = {
-      "status" : 0,
+  var session = await getSessionDataWrapper( id );
+  if ( session ) {
+    photo = session.sessionData;
+    session.sessionData = {
+      "status" : "request_created",
       "message": "Waiting for QR code to be scanned"
     };
-    if ( session ) {
-      session.sessionData = sessionData;
-      mainApp.sessionStore.set( id, session);  
-    }
-  });
-
+    mainApp.sessionStore.set( id, session);  
+  }
   // get the Access Token
   var accessToken = "";
   try {
@@ -111,6 +130,9 @@ mainApp.app.get('/api/issuer/issuance-request', async (req, res) => {
       issuanceConfig.pin.value = generatePin( issuanceConfig.pin.length );
     }
   }
+  if ( null != photo ) {
+    console.log( 'We have a photo claim');
+  }
   // here you could change the payload manifest and change the firstname and lastname
   if ( issuanceConfig.claims ) {
     if ( issuanceConfig.claims.given_name ) {
@@ -118,6 +140,10 @@ mainApp.app.get('/api/issuer/issuance-request', async (req, res) => {
     }
     if ( issuanceConfig.claims.family_name ) {
       issuanceConfig.claims.family_name = "Bowen";
+    }
+    if ( issuanceConfig.claims.photo ) {
+      console.log( 'We set a photo claim');
+      issuanceConfig.claims.photo = photo;
     }
   }
 
@@ -217,6 +243,34 @@ mainApp.app.post('/api/issuer/issuance-request-callback', parser, async (req, re
     })      
   });  
 })
+
+mainApp.app.post('/api/issuer/photo', parser, async (req, res) => {
+  var body = '';
+  req.on('data', function (data) {
+    body += data;
+  });
+  req.on('end', function () {
+    requestTrace( req );
+    console.log( body );
+    let idx = body.indexOf(";base64,");
+    if ( -1 == idx ) {
+      console.log( `400 - image must be data:image/jpeg;base64` );
+      res.status(400).json({'error': `image must be data:image/jpeg;base64`});      
+    } else {
+      var id = req.session.id;
+      mainApp.sessionStore.get( id, (error, session) => {
+        if ( session ) {
+          let photo = body.substring(idx+8);
+          console.log( '200 - storing photo');
+          session.sessionData = photo;
+          mainApp.sessionStore.set( id, session);  
+        }
+      });    
+    }
+    res.send();
+  });  
+})
+
 /**
  * this function is called from the UI polling for a response from the AAD VC Service.
  * when a callback is received at the presentationCallback service the session will be updated

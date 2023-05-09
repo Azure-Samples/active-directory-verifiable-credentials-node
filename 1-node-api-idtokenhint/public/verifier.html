@@ -72,7 +72,7 @@
                                         clearInterval(checkStatus);
                                         window.location = "presentation-verified.html?id=" + requestId
                                     }
-                                    if (respMsg.status == 'issuance_failed') {
+                                    if (respMsg.status == 'presentation_error') {
                                         document.getElementById('qrcode').style.display = "none";
                                         document.getElementById('message').innerHTML = "Verification error occurred.";
                                         document.getElementById('payload').innerHTML = "Payload: " + JSON.stringify(respMsg.payload);
@@ -96,26 +96,18 @@
                         .catch(error => document.getElementById("message").innerHTML = error)
                         .then(function(message) {
                             respPresentationReq = JSON.parse(message);
-                            if( /Android/i.test(navigator.userAgent) ) {
-                                console.log(`Android device! Using deep link (${respPresentationReq.url}).`);
-                                document.getElementById('check-result').style.display = "inline-block";
-                                document.getElementById('sign-in').style.display = "none";
-                                window.location.href = respPresentationReq.url; 
-                                setTimeout(function () {
-                                    window.location.href = "https://play.google.com/store/apps/details?id=com.azure.authenticator"; 
-                                }, 2000);
-                            } else if (/iPhone/i.test(navigator.userAgent)) {
-                                console.log(`iOS device! Using deep link (${respPresentationReq.url}).`);
-                                document.getElementById('check-result').style.display = "inline-block";
-                                document.getElementById('sign-in').style.display = "none";
-                                window.location.replace(respPresentationReq.url);
+                            if (respPresentationReq.error_description) {
+                                document.getElementById("message").innerHTML = respPresentationReq.error_description;
+                                document.getElementById('message-wrapper').style.display = "block";
+                                respPresReq = null;
                             } else {
-                                console.log(`Not Android or IOS. Generating QR code encoded with ${message}`);
-                                if (respPresentationReq.error_description) {
-                                    document.getElementById("message").innerHTML = respPresentationReq.error_description;
-                                    document.getElementById('message-wrapper').style.display = "block";
-                                    respPresReq = null;
+                                if (/Android/i.test(navigator.userAgent) || /iPhone/i.test(navigator.userAgent)) {
+                                    console.log(`Mobile device (${navigator.userAgent})! Using deep link (${respPresentationReq.url}).`);
+                                    document.getElementById('check-result').style.display = "inline-block";
+                                    document.getElementById('sign-in').style.display = "none";
+                                    window.location.replace(respPresentationReq.url);
                                 } else {
+                                    console.log(`Not Android or IOS. Generating QR code encoded with ${message}`);
                                     qrcode.makeCode(respPresentationReq.url);
                                     document.getElementById('sign-in').style.visibility = "hidden";
                                     document.getElementById('qrText').style.display = "block";

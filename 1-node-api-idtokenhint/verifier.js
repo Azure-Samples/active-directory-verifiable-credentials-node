@@ -30,13 +30,22 @@ if ( !requestConfigFile ) {
   requestConfigFile = process.env.PRESENTATIONFILE || './presentation_request_config.json';
 }
 var presentationConfig = require( requestConfigFile );
-presentationConfig.registration.clientName = "Node.js Verified ID sample";
+if ( presentationConfig.registration.clientName.startsWith("...") ) {
+  presentationConfig.registration.clientName = "Node.js Verified ID sample";
+}
 // copy the issuerDID from the settings and fill in the acceptedIssuers part of the payload
 // this means only that issuer should be trusted for the requested credentialtype
 // this value is an array in the payload, you can trust multiple issuers for the same credentialtype
 // very common to accept the test VCs and the Production VCs coming from different verifiable credential services
 if ( presentationConfig.callback.headers ) {
   presentationConfig.callback.headers['api-key'] = mainApp.config["apiKey"];
+}
+if ( mainApp.config["CredentialType"] ) {
+  presentationConfig.requestedCredentials[0].type = mainApp.config["CredentialType"]
+}
+presentationConfig.authority = mainApp.config["VerifierAuthority"]
+if ( mainApp.config["IssuerAuthority"].startsWith("did:") ) {
+  presentationConfig.requestedCredentials[0].acceptedIssuers[0] = mainApp.config["IssuerAuthority"]
 }
 
 function requestTrace( req ) {
@@ -82,14 +91,17 @@ mainApp.app.get('/api/verifier/presentation-request', async (req, res) => {
   // with tools like ngrok since the URI changes all the time
   // this way you don't need to modify the callback URL in the payload every time
   // ngrok changes the URI
-  presentationConfig.authority = mainApp.config["VerifierAuthority"]
   presentationConfig.callback.url = `https://${req.hostname}/api/verifier/presentation-request-callback`;
   presentationConfig.callback.state = id;
 
   console.log( 'Request Service API Request' );
   var client_api_request_endpoint = `${mainApp.config.msIdentityHostName}verifiableCredentials/createPresentationRequest`;
-  console.log( client_api_request_endpoint );
   var payload = JSON.stringify(presentationConfig);
+  // quickfix - createPresentationRequest with faceCheck must use beta endpoint
+  if ( payload.includes("faceCheck")) {
+    client_api_request_endpoint = client_api_request_endpoint.replace("/v1.0/", "/beta/");
+  }
+  console.log( client_api_request_endpoint );
   console.log( payload );
   const fetchOptions = {
     method: 'POST',
@@ -98,9 +110,11 @@ mainApp.app.get('/api/verifier/presentation-request', async (req, res) => {
       'Content-Type': 'application/json',
       'Content-Length': payload.length.toString(),
       'Authorization': `Bearer ${accessToken}`
+      //, 'x-ms-did-target': `wus2`
     }
   };
 
+  console.log( fetchOptions);
   const response = await fetch(client_api_request_endpoint, fetchOptions);
   var resp = await response.json()
 
@@ -156,6 +170,13 @@ mainApp.app.post('/api/verifier/presentation-request-callback', parser, async (r
           cacheData.iat = vc.iat;
           cacheData.exp = vc.exp;  
         }
+      break;
+      case "presentation_error":
+        var cacheData = {
+          "status" : presentationResponse.requestStatus,
+          "message": presentationResponse.error.message,
+          "payload": presentationResponse.error.code
+        };
       break;
       default:
         console.log( `400 - Unsupported requestStatus: ${presentationResponse.requestStatus}` );

@@ -36,7 +36,7 @@ config.apiKey = uuid.v4();
 ///////////////////////////////////////////////////////////////////////////////////////
 // Check that the manifestURL have the matching tenantId with the config file
 var manifestUrl = config.CredentialManifest.split("/")[5];
-if ( config.azTenantId != manifestUrl ) {
+if(  config.azTenantId != manifestUrl ) {
   throw new Error( `TenantId in ManifestURL ${manifestUrl}. does not match tenantId in config file ${config.azTenantId}` );
 }
 
