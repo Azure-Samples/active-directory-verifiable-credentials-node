@@ -1,2 +1,2 @@
 #!/bin/bash
-docker build -t node-aadvc-api-idtokenhint .
+docker build -t node-api-idtokenhint .

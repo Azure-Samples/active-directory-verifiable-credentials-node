@@ -6,6 +6,10 @@
     "azCertThumbprint":  "<YOUR-AAD-CERTTHUMBPRINT>",
     "azCertificatePrivateKeyLocation":  "<YOUR-AAD-CERTLOCATION>",
     "CredentialManifest": "<YOUR-MANIFEST-URL>",
-    "IssuerAuthority": "<YOUR-did:ion>",
-    "VerifierAuthority": "<VCs-did:ion>"
+    "DidAuthority": "<YOUR-did:ion>",
+    "acceptedIssuers": "did:web:...your-did...",
+    "CredentialType": "VerifiedCredentialExpert",
+    "issuancePinCodeLength": 4,
+    "sourcePhotoClaimName": "photo",
+    "matchConfidenceThreshold": 70
 }

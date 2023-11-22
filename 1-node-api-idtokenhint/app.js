@@ -20,46 +20,79 @@ const fs = require('fs');
 const crypto = require('crypto');
 var uuid = require('uuid');
 
+console.time("startup");
 ///////////////////////////////////////////////////////////////////////////////////////
 // config file can come from command line, env var or the default
-var configFile = process.argv.slice(2)[0];
+var config = {
+  azTenantId : process.env.azTenantId,
+  azClientId : process.env.azClientId,
+  azClientSecret: process.env.azClientSecret,
+  azCertificateName:  process.env.azCertificateName,
+  azCertThumbprint:  process.env.azCertThumbprint,
+  azCertificatePrivateKeyLocation:  process.env.azCertificatePrivateKeyLocation,
+  CredentialManifest: process.env.CredentialManifest,
+  DidAuthority: process.env.DidAuthority,
+  acceptedIssuers: process.env.acceptedIssuers,
+  CredentialType: process.env.CredentialType,
+  issuancePinCodeLength: process.env.issuancePinCodeLength,
+  sourcePhotoClaimName: process.env.photoClaimName,
+  matchConfidenceThreshold: process.env.matchConfidenceThreshold
+};
+var configFile = process.env.CONFIGFILE;
 if ( !configFile ) {
-  configFile = process.env.CONFIGFILE || './config.json';
+  var idx = process.argv.findIndex((el) => el == "-c");
+  if ( idx != -1 ) {
+    configFile = process.argv[idx+1];
+  }
 }
-const config = require( configFile )
+if ( configFile ) {
+  config = require( configFile );
+}
+if ( !config.azCertificateName ) {
+  config.azCertificateName = "";
+} else {
+  config.azCertificateName = (config.azCertificateName.startsWith("<") ? "" : config.azCertificateName);
+}
+if ( config.issuancePinCodeLength ) {
+  config.issuancePinCodeLength = parseInt( config.issuancePinCodeLength );
+}
+console.log(config);
 if (!config.azTenantId) {
-  throw new Error('The config.json file is missing.')
+  throw new Error('azTenantId is missing in the config.')
 }
 module.exports.config = config;
 
 config.apiKey = uuid.v4();
 ///////////////////////////////////////////////////////////////////////////////////////
-// Check that the manifestURL have the matching tenantId with the config file
-var manifestUrl = config.CredentialManifest.split("/")[5];
-if ( config.azTenantId != manifestUrl ) {
-  throw new Error( `TenantId in ManifestURL ${manifestUrl}. does not match tenantId in config file ${config.azTenantId}` );
+//
+if ( config.CredentialManifest ) {
+  // Check that the manifestURL have the matching tenantId with the config file
+  var manifestUrl = config.CredentialManifest.split("/")[5];
+  if(  config.azTenantId != manifestUrl ) {
+    throw new Error( `TenantId in ManifestURL ${manifestUrl}. does not match tenantId in config file ${config.azTenantId}` );
+  }
+  // Check that the issuer in the config file match the manifest
+  fetch( config.CredentialManifest, { method: 'GET'} )
+    .then(res => res.json())
+    .then((resp) => {
+      if ( !resp.token ) {
+        throw new Error( `Could not retrieve manifest from URL ${config.CredentialManifest}` );
+      }
+      config.manifest = JSON.parse(base64url.decode(resp.token.split(".")[1]));
+      // if you don't specify DidAuthority in the config file, use the issuer DID from the manifest
+      if ( config.DidAuthority == "" ) {
+        config.DidAuthority = config.manifest.iss;
+      }
+      if ( config.manifest.iss != config.DidAuthority ) {
+        throw new Error( `Wrong DidAuthority in config file ${config.DidAuthority}. Issuer in manifest is ${config.manifest.iss}` );
+      }
+      if ( config.manifest.input.attestations.idTokens ) {
+        if ( config.manifest.input.attestations.idTokens[0].configuration == "https://self-issued.me" ) {
+          config.claims = config.manifest.input.attestations.idTokens[0].claims;
+        }
+      }
+    }); 
 }
-
-// Check that the issuer in the config file match the manifest
-fetch( config.CredentialManifest, { method: 'GET'} )
-  .then(res => res.json())
-  .then((resp) => {
-    if ( !resp.token ) {
-      throw new Error( `Could not retrieve manifest from URL ${config.CredentialManifest}` );
-    }
-    config.manifest = JSON.parse(base64url.decode(resp.token.split(".")[1]));
-    // if you don't specify IssuerAuthority or VerifierAuthority in the config file, use the issuer DID from the manifest
-    if ( config.IssuerAuthority == "" ) {
-      config.IssuerAuthority = config.manifest.iss;
-    }
-    if ( config.VerifierAuthority == "" ) {
-      config.VerifierAuthority = config.manifest.iss;
-    }
-    if ( config.manifest.iss != config.IssuerAuthority ) {
-      throw new Error( `Wrong IssuerAuthority in config file ${config.IssuerAuthority}. Issuer in manifest is ${config.manifest.iss}` );
-    }
-  }); 
-
 ///////////////////////////////////////////////////////////////////////////////////////
 // MSAL
 var msalConfig = {
@@ -104,8 +137,15 @@ const msalClientCredentialRequest = {
 module.exports.msalCca = cca;
 module.exports.msalClientCredentialRequest = msalClientCredentialRequest;
 
-config.msIdentityHostName = "https://verifiedid.did.msidentity.com/v1.0/";
 
+if ( !config.msIdentityHostName ) {
+  if ( config.CredentialManifest ) {
+    config.msIdentityHostName = config.CredentialManifest.split("tenants/")[0];
+  } else {
+    config.msIdentityHostName = "https://verifiedid.did.msidentity.com/v1.0/";
+  }
+}
+console.log(`Verified ID endpoint: ${config.msIdentityHostName}`);
 ///////////////////////////////////////////////////////////////////////////////////////
 // check that we a) can acquire an access_token and b) that it has the needed permission for this sample
 cca.acquireTokenByClientCredential(msalClientCredentialRequest).then((result) => {
@@ -123,7 +163,7 @@ cca.acquireTokenByClientCredential(msalClientCredentialRequest).then((result) =>
     throw new Error( `Could not acquire access token. Check your configuration for tenant ${config.azTenantId} and clientId ${config.azClientId}` );
   });
 
- ///////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////
 // Check if it is an EU tenant and set up the endpoint for it
 fetch( `https://login.microsoftonline.com/${config.azTenantId}/v2.0/.well-known/openid-configuration`, { method: 'GET'} )
 .then(res => res.json())
@@ -131,7 +171,7 @@ fetch( `https://login.microsoftonline.com/${config.azTenantId}/v2.0/.well-known/
   console.log( `tenant_region_scope = ${resp.tenant_region_scope}`);
   config.tenant_region_scope = resp.tenant_region_scope;
   // Check that the Credential Manifest URL is in the same tenant Region and throw an error if it's not
-  if ( !config.CredentialManifest.startsWith(config.msIdentityHostName) ) {
+  if ( config.CredentialManifest && !config.msIdentityHostName.startsWith("https://dev.did.msidentity.com/v1.0/") && !config.CredentialManifest.startsWith(config.msIdentityHostName) ) {
     throw new Error( `Error in config file. CredentialManifest URL configured for wrong tenant region. Should start with: ${config.msIdentityHostName}` );
   }
 }); 
@@ -167,6 +207,22 @@ app.use(function (req, res, next) {
 module.exports.sessionStore = sessionStore;
 module.exports.app = app;
 
+function getSessionData( id, callback ) {
+  sessionStore.get( id, (error, session) => {
+    callback(session);
+  });
+}
+function getSessionDataWrapper( id ) {
+  return new Promise((resolve, reject) => {
+    getSessionData(id, (goodResponse) => {
+      resolve(goodResponse);
+    }, (badResponse) => {
+      reject(badResponse);
+    });
+  });
+}
+module.exports.getSessionDataWrapper = getSessionDataWrapper;
+
 function requestTrace( req ) {
   var dateFormatted = new Date().toISOString().replace("T", " ");
   var h1 = '//****************************************************************************';
@@ -174,6 +230,7 @@ function requestTrace( req ) {
   console.log( `Headers:`)
   console.log(req.headers);
 }
+module.exports.requestTrace = requestTrace;
 
 // echo function so you can test that you can reach your deployment
 app.get("/echo",
@@ -185,8 +242,7 @@ app.get("/echo",
             'Host': req.hostname,
             'x-forwarded-for': req.headers['x-forwarded-for'],
             'x-original-host': req.headers['x-original-host'],
-            'IssuerAuthority': config.IssuerAuthority,
-            'VerifierAuthority': config.VerifierAuthority,
+            'DidAuthority': config.DidAuthority,
             'manifestURL': config.CredentialManifest,
             'clientId': config.azClientId,
             'configFile': configFile
@@ -201,7 +257,11 @@ app.get('/', function (req, res) {
 })
 
 var verifier = require('./verifier.js');
-var issuer = require('./issuer.js');
+if ( config.CredentialManifest ) {
+  var issuer = require('./issuer.js');
+}
+var callback = require('./callback.js');
 
+console.timeEnd("startup");
 // start server
 app.listen(port, () => console.log(`Example issuer app listening on port ${port}!`))

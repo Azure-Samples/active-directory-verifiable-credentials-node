@@ -1,4 +1,4 @@
-FROM node:12
+FROM node:18
 
 WORKDIR /usr/src/app
 
@@ -9,4 +9,4 @@ RUN npm install
 COPY . .
 
 EXPOSE 8080
-CMD node app.js $CONFIGFILE $ISSUANCEFILE $PRESENTATIONFILE
+CMD node app.js

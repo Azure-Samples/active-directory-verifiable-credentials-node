@@ -22,36 +22,65 @@ var parser = bodyParser.urlencoded({ extended: false });
 
 ///////////////////////////////////////////////////////////////////////////////////////
 // Setup the issuance request payload template
-//////////// Setup the issuance request payload template
-var requestConfigFile = process.argv.slice(2)[1];
+var issuanceConfig = {
+  "authority": "...set at runtime...",
+  "includeQRCode": false,
+  "registration": {
+      "clientName": "...set at runtime...",
+      "purpose": "...set at runtime.."
+  },
+  "callback": {
+    "url": "...set at runtime...",
+    "state": "...set at runtime...",
+    "headers": {
+       "api-key": "...set at runtime..."
+    }
+  },
+  "type": "ignore-this",
+  "manifest": "...set at runtime..."
+};
+
+// see if we got a template from 1) envvar or 2) cmd argv
+var requestConfigFile = process.env.ISSUANCEFILE;
 if ( !requestConfigFile ) {
-  requestConfigFile = process.env.ISSUANCEFILE || './issuance_request_config.json';
+  var idx = process.argv.findIndex((el) => el == "-i");
+  if ( idx != -1 ) {
+    requestConfigFile = process.argv[idx+1];
+  }
+  if ( requestConfigFile ) {
+    issuanceConfig = require( requestConfigFile );
+  }
 }
-var issuanceConfig = require( requestConfigFile );
-issuanceConfig.registration.clientName = "Node.js Verified ID sample";
-// get the manifest from config.json, this is the URL to the credential created in the azure portal. 
-// the display and rules file to create the credential can be found in the credentialfiles directory
-// make sure the credentialtype in the issuance payload ma
-issuanceConfig.authority = mainApp.config["IssuerAuthority"]
+
+if ( mainApp.config["clientName"] ) {
+  issuanceConfig.registration.clientName = mainApp.config["clientName"];
+}
+if ( issuanceConfig.registration.clientName.startsWith("...") ) {
+  issuanceConfig.registration.clientName = "Node.js Verified ID sample";
+}
+if ( mainApp.config["purpose"] ) {
+  issuanceConfig.registration.purpose = mainApp.config["purpose"];
+}
+if ( issuanceConfig.registration.purpose.startsWith("...") ) {
+  issuanceConfig.registration.purpose = "To issue you with an expert credential";
+}
+issuanceConfig.authority = mainApp.config["DidAuthority"]
 issuanceConfig.manifest = mainApp.config["CredentialManifest"]
+
 // if there is pin code in the config, but length is zero - remove it. It really shouldn't be there
+if ( mainApp.config["issuancePinCodeLength"] && mainApp.config["issuancePinCodeLength"] > 0 ) {
+  issuanceConfig.pin = { length: mainApp.config["issuancePinCodeLength"], value: '' };
+}
 if ( issuanceConfig.pin && issuanceConfig.pin.length == 0 ) {
   issuanceConfig.pin = null;
 }
 if ( issuanceConfig.callback.headers ) {
   issuanceConfig.callback.headers['api-key'] = mainApp.config["apiKey"];
 }
+//console.log( issuanceConfig );
 
-console.log( `api-key: ${mainApp.config["apiKey"]}` );
-
-function requestTrace( req ) {
-  var dateFormatted = new Date().toISOString().replace("T", " ");
-  var h1 = '//****************************************************************************';
-  console.log( `${h1}\n${dateFormatted}: ${req.method} ${req.protocol}://${req.headers["host"]}${req.originalUrl}` );
-  console.log( `Headers:`)
-  console.log(req.headers);
-}
-
+///////////////////////////////////////////////////////////////////////////////////////
+//
 function generatePin( digits ) {
   var add = 1, max = 12 - add;
   max        = Math.pow(10, digits+add);
@@ -59,24 +88,18 @@ function generatePin( digits ) {
   var number = Math.floor( Math.random() * (max - min + 1) ) + min;
   return ("" + number).substring(add); 
 }
-/**
- * This method is called from the UI to initiate the issuance of the verifiable credential
- */
-mainApp.app.get('/api/issuer/issuance-request', async (req, res) => {
-  requestTrace( req );
-  var id = req.session.id;
-  // prep a session state of 0
-  mainApp.sessionStore.get( id, (error, session) => {
-    var sessionData = {
-      "status" : 0,
-      "message": "Waiting for QR code to be scanned"
-    };
-    if ( session ) {
-      session.sessionData = sessionData;
-      mainApp.sessionStore.set( id, session);  
-    }
-  });
 
+///////////////////////////////////////////////////////////////////////////////////////
+// This method is called from the UI to initiate the issuance of the  credential
+mainApp.app.get('/api/issuer/issuance-request', async (req, res) => {
+  mainApp.requestTrace( req );
+  var id = req.session.id;
+  if ( req.query.id ) {
+    id = req.query.id;
+  }
+  console.log( `id: ${id}` );
+
+  var photo = null;
   // get the Access Token
   var accessToken = "";
   try {
@@ -87,31 +110,51 @@ mainApp.app.get('/api/issuer/issuance-request', async (req, res) => {
   } catch {
     console.log( "failed to get access token" );
     res.status(401).json({
-        'error': 'Could not acquire credentials to access your Azure Key Vault'
+        'error': 'Could not acquire credentials to access Verified ID'
         });  
       return; 
   }
   console.log( `accessToken: ${accessToken}` );
 
-  issuanceConfig.authority = mainApp.config["IssuerAuthority"]
-  // modify the callback method to make it easier to debug 
-  // with tools like ngrok since the URI changes all the time
-  // this way you don't need to modify the callback URL in the payload every time
-  // ngrok changes the URI
-  issuanceConfig.callback.url = `https://${req.hostname}/api/issuer/issuance-request-callback`;
-  // modify payload with new state, the state is used to be able to update the UI when callbacks are received from the VC Service
+  // prep an initial session state
+  var session = await mainApp.getSessionDataWrapper( id );
+  if ( session ) {
+    if ( session.sessionData && session.sessionData.photo ) {
+      photo = session.sessionData.photo;
+    }
+    session.sessionData = {
+      "status" : "request_created",
+      "message": "Waiting for QR code to be scanned"
+    };
+    mainApp.sessionStore.set( id, session);  
+  }
+  if ( null != photo ) {
+    console.log( 'Photo set in session state');
+  }
+  
+  issuanceConfig.authority = mainApp.config["DidAuthority"]
+  issuanceConfig.callback.url = `https://${req.hostname}/api/request-callback`;
   issuanceConfig.callback.state = id;
-  // check if pin is required, if found make sure we set a new random pin
-  // pincode is only used when the payload contains claim value pairs which results in an IDTokenhint
+  // if pin is required, then generate a pin code. 
+  // pincode can only be used for idTokenHint attestation
   if ( issuanceConfig.pin ) {
-    // don't use pin if user is on mobile device
+    // don't use pin if user is on mobile device as it doesn't make sense
     if ( req.headers["user-agent"].includes("Android") || req.headers["user-agent"].includes('iPhone')) {
       delete issuanceConfig.pin;
     } else {
       issuanceConfig.pin.value = generatePin( issuanceConfig.pin.length );
     }
   }
-  // here you could change the payload manifest and change the firstname and lastname
+  // copy claim names from manifest for idTokenHint - this is a bit extra and you can just set the claims below
+  if ( mainApp.config["claims"] ) {
+    issuanceConfig.claims = {};
+    for (i = 0; i < mainApp.config["claims"].length; i++) {
+      var claimName = mainApp.config["claims"][i].claim.replace("$.", "");
+      issuanceConfig.claims[claimName] = "...set in code...";
+    }
+  } 
+
+  // set the claim values - only for idTokenHint attestation
   if ( issuanceConfig.claims ) {
     if ( issuanceConfig.claims.given_name ) {
       issuanceConfig.claims.given_name = "Megan";
@@ -119,8 +162,13 @@ mainApp.app.get('/api/issuer/issuance-request', async (req, res) => {
     if ( issuanceConfig.claims.family_name ) {
       issuanceConfig.claims.family_name = "Bowen";
     }
+    if ( issuanceConfig.claims.photo ) {
+      console.log( 'We set a photo claim');
+      issuanceConfig.claims.photo = photo;
+    }
   }
 
+  // call Verified ID Request Service issuance API
   console.log( 'Request Service API Request' );
   var client_api_request_endpoint = `${mainApp.config.msIdentityHostName}verifiableCredentials/createIssuanceRequest`;
   console.log( client_api_request_endpoint );
@@ -137,8 +185,10 @@ mainApp.app.get('/api/issuer/issuance-request', async (req, res) => {
     }
   };
 
+  console.time("createIssuanceRequest");
   const response = await fetch(client_api_request_endpoint, fetchOptions);
   var resp = await response.json()
+  console.timeEnd("createIssuanceRequest");
   // the response from the VC Request API call is returned to the caller (the UI). It contains the URI to the request which Authenticator can download after
   // it has scanned the QR code. If the payload requested the VC Request service to create the QR code that is returned as well
   // the javascript in the UI will use that QR code to display it on the screen to the user.            
@@ -149,95 +199,108 @@ mainApp.app.get('/api/issuer/issuance-request', async (req, res) => {
   console.log( 'VC Client API Response' );
   console.log( response.status );
   console.log( resp );  
+
   if ( response.status > 299 ) {
-    res.status(400).json( resp.error );  
-} else {
+    resp.error_description = `[${resp.error.innererror.code}] ${resp.error.message} ${resp.error.innererror.message}`;
+    res.status(400).json( resp );  
+  } else {
     res.status(200).json( resp );       
   }
 })
-/**
- * This method is called by the VC Request API when the user scans a QR code and presents a Verifiable Credential to the service
- */
-mainApp.app.post('/api/issuer/issuance-request-callback', parser, async (req, res) => {
+
+///////////////////////////////////////////////////////////////////////////////////////
+// Returns the manifest to the UI so it can use it in rendering
+mainApp.app.get('/api/issuer/get-manifest', async (req, res) => {
+  mainApp.requestTrace( req );
+  var id = req.query.id;
+  res.status(200).json(mainApp.config["manifest"]);   
+})
+
+///////////////////////////////////////////////////////////////////////////////////////
+// sets a jpeg photo in the session state
+function setUserPhoto( id, res, body ) {
+  console.log( body );
+  let idx = body.indexOf(";base64,");
+  if ( -1 == idx ) {
+    console.log( `400 - image must be data:image/jpeg;base64` );
+    res.status(400).json({'error': `image must be data:image/jpeg;base64`});      
+  } else {      
+    //var id = req.session.id;
+    //if ( req.query.id ) {
+    //  id = req.query.id;
+    //}
+    console.log( `id: ${id}` );    
+    mainApp.sessionStore.get( id, (error, session) => {
+      if ( session ) {
+        let photo = body.substring(idx+8);
+        console.log( '200 - storing photo');
+        var cacheData = {
+          "status": "selfie_taken",
+          "message": "Selfie taken",
+          "photo": photo
+        };
+        session.sessionData = cacheData;
+        console.log( session.sessionData );
+        mainApp.sessionStore.set( id, session);  
+        res.send();
+      } else {
+        console.log( `400 - Unknown state: ${id}` );
+        res.status(400).json({'error': `Unknown state: ${id}`});      
+      }
+    });    
+  }
+}
+
+///////////////////////////////////////////////////////////////////////////////////////
+// this endpoint is called by the mobile when the user selects 'Use Photo'
+mainApp.app.post('/api/issuer/selfie/:id', parser, async (req, res) => {
   var body = '';
   req.on('data', function (data) {
     body += data;
   });
   req.on('end', function () {
-    requestTrace( req );
-    console.log( body );
-    // the api-key is set at startup in app.js. If not present in callback, the call should be rejected
-    if ( req.headers['api-key'] != mainApp.config["apiKey"] ) {
-      res.status(401).json({'error': 'api-key wrong or missing'});  
-      return; 
-    }
-    var issuanceResponse = JSON.parse(body.toString());
-    var cacheData;
-    switch ( issuanceResponse.requestStatus ) {
-      // this callback signals that the request has been retrieved (QR code scanned, etc)
-      case "request_retrieved":
-        cacheData = {
-          "status": issuanceResponse.requestStatus,
-          "message": "QR Code is scanned. Waiting for validation..."
-        };
-      break;
-      // this callback signals that issuance of the VC was successful and the VC is now in the wallet
-      case "issuance_successful":
-        var cacheData = {
-          "status" : issuanceResponse.requestStatus,
-          "message": "Credential successfully issued"
-        };
-      break;
-      // this callback signals that issuance did not complete. It could be for technical reasons or that the user didn't accept it
-      case "issuance_error":
-        var cacheData = {
-          "status" : issuanceResponse.requestStatus,
-          "message": issuanceResponse.error.message,
-          "payload": issuanceResponse.error.code
-        };
-      break;
-      default:
-        console.log( `400 - Unsupported requestStatus: ${issuanceResponse.requestStatus}` );
-        res.status(400).json({'error': `Unsupported requestStatus: ${issuanceResponse.requestStatus}`});      
-        return;
-    }
-    // store the session state so the UI can pick it up and progress
-    mainApp.sessionStore.get( issuanceResponse.state, (error, session) => {
-      if ( session ) {
-        session.sessionData = cacheData;
-        mainApp.sessionStore.set( issuanceResponse.state, session, (error) => {
-          console.log( "200 - OK");
-          res.send();
-        });
-      } else {
-        console.log( `400 - Unknown state: ${issuanceResponse.state}` );
-        res.status(400).json({'error': `Unknown state: ${issuanceResponse.state}`});      
-        return;
-      }
-    })      
+    mainApp.requestTrace( req );
+    setUserPhoto( req.params.id, res, body );
   });  
 })
-/**
- * this function is called from the UI polling for a response from the AAD VC Service.
- * when a callback is received at the presentationCallback service the session will be updated
- * this method will respond with the status so the UI can reflect if the QR code was scanned and with the result of the presentation
- */
-mainApp.app.get('/api/issuer/issuance-response', async (req, res) => {
-  var id = req.query.id;
-  requestTrace( req );
-  mainApp.sessionStore.get( id, (error, session) => {
-    if (session && session.sessionData) {
-      console.log(`200 - status: ${session.sessionData.status}, message: ${session.sessionData.message}`);
-      res.status(200).json(session.sessionData);   
-    } else {
-      console.log( `400 - Unknown state: ${id}` );
-      res.status(400).json({'error': `Unknown state: ${id}`});      
-    }
-  })
+
+///////////////////////////////////////////////////////////////////////////////////////
+// this endpoint is called from the browser when the user is happy with 
+// either a selfie or an uploaded picture
+mainApp.app.post('/api/issuer/userphoto', parser, async (req, res) => {
+  var body = '';
+  req.on('data', function (data) {
+    body += data;
+  });
+  req.on('end', function () {
+    mainApp.requestTrace( req );
+    setUserPhoto( req.session.id, res, body );
+  });  
 })
 
-mainApp.app.get('/api/issuer/get-manifest', async (req, res) => {
-  var id = req.query.id;
-  requestTrace( req );
-  res.status(200).json(mainApp.config["manifest"]);   
+///////////////////////////////////////////////////////////////////////////////////////
+// Return a Take Selfie request
+mainApp.app.get('/api/issuer/selfie-request', async (req, res) => {
+  mainApp.requestTrace( req );
+  var id = req.session.id;
+  mainApp.sessionStore.get( id, (error, session) => {
+    if ( session ) {
+      console.log( 'Resetting state');
+      var cacheData = {
+        "status": "request_created",
+        "message": "Waiting for request to begin"
+      };
+      session.sessionData = cacheData;
+      console.log( session.sessionData );
+      mainApp.sessionStore.set( id, session);  
+    }
+  });    
+  var resp = {
+    id: req.session.id,
+    url: `https://${req.hostname}/selfie.html?callbackUrl=https://${req.hostname}/api/issuer/selfie/${req.session.id}`,
+    photo: '',
+    status: "request_created",
+    expiry: parseInt(Date.now() / 1000 + (60*5))
+  };
+  res.status(200).json(resp);   
 })
