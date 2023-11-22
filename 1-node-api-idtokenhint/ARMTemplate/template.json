@@ -197,7 +197,7 @@
                             "value": "4"
                         },
                         {
-                            "name": "PhotoClaimName",
+                            "name": "photoClaimName",
                             "value": "[parameters('PhotoClaimName')]"
                         },
                         {
