@@ -25,13 +25,56 @@ var parser = bodyParser.urlencoded({ extended: false });
 
 ///////////////////////////////////////////////////////////////////////////////////////
 // Setup the presentation request payload template
-var requestConfigFile = process.argv.slice(2)[2];
+var presentationConfig = {
+  "authority": "...set in code...",
+  "includeQRCode": false,
+  "callback": {
+    "url": "...set in code...",
+    "state": "...set in code...",
+    "headers": {
+      "api-key": "...set in code..."
+    }
+  },
+  "registration": {
+    "clientName": "...set in code...",
+    "purpose": "...set in code..."
+  },
+  "includeReceipt": true,
+  "requestedCredentials": [
+    {
+      "type": "...set in code...",
+      "acceptedIssuers": [],
+      "configuration": {
+        "validation": {
+          "allowRevoked": true,
+          "validateLinkedDomain": true
+        }
+      }    
+    }
+  ]
+};
+// see if we got a template from 1) envvar or 2) cmd argv
+var requestConfigFile = process.env.PRESENTATIONFILE;
 if ( !requestConfigFile ) {
-  requestConfigFile = process.env.PRESENTATIONFILE || './presentation_request_config.json';
+  var idx = process.argv.findIndex((el) => el == "-p");
+  if ( idx != -1 ) {
+    requestConfigFile = process.argv[idx+1];
+  }
+  if ( requestConfigFile ) {
+    presentationConfig = require( requestConfigFile );
+  }
 }
-var presentationConfig = require( requestConfigFile );
+if ( mainApp.config["clientName"] ) {
+  presentationConfig.registration.clientName = mainApp.config["clientName"];
+}
 if ( presentationConfig.registration.clientName.startsWith("...") ) {
   presentationConfig.registration.clientName = "Node.js Verified ID sample";
+}
+if ( mainApp.config["purpose"] ) {
+  presentationConfig.registration.purpose = mainApp.config["purpose"];
+}
+if ( presentationConfig.registration.purpose.startsWith("...") ) {
+  presentationConfig.registration.purpose = "To prove that you are an expert";
 }
 // copy the issuerDID from the settings and fill in the acceptedIssuers part of the payload
 // this means only that issuer should be trusted for the requested credentialtype
@@ -43,35 +86,19 @@ if ( presentationConfig.callback.headers ) {
 if ( mainApp.config["CredentialType"] ) {
   presentationConfig.requestedCredentials[0].type = mainApp.config["CredentialType"]
 }
-presentationConfig.authority = mainApp.config["VerifierAuthority"]
-if ( mainApp.config["IssuerAuthority"].startsWith("did:") ) {
-  presentationConfig.requestedCredentials[0].acceptedIssuers[0] = mainApp.config["IssuerAuthority"]
+presentationConfig.authority = mainApp.config["DidAuthority"]
+if ( mainApp.config["acceptedIssuers"].includes("did:") ) {
+    presentationConfig.requestedCredentials[0].acceptedIssuers = mainApp.config["acceptedIssuers"].split(";");
 }
 
-function requestTrace( req ) {
-  var dateFormatted = new Date().toISOString().replace("T", " ");
-  var h1 = '//****************************************************************************';
-  console.log( `${h1}\n${dateFormatted}: ${req.method} ${req.protocol}://${req.headers["host"]}${req.originalUrl}` );
-  console.log( `Headers:`)
-  console.log(req.headers);
-}
-/**
- * This method is called from the UI to initiate the presentation of the verifiable credential
- */
+//console.log( presentationConfig );
+
+///////////////////////////////////////////////////////////////////////////////////////
+// This method is called from the UI to initiate the presentation of the credential
 mainApp.app.get('/api/verifier/presentation-request', async (req, res) => {
-  requestTrace( req );
+  mainApp.requestTrace( req );
   var id = req.session.id;
-  // prep a session state of 0
-  mainApp.sessionStore.get( id, (error, session) => {
-    var sessionData = {
-      "status" : "request_created",
-      "message": "Waiting for QR code to be scanned"
-    };
-    if ( session ) {
-      session.sessionData = sessionData;
-      mainApp.sessionStore.set( id, session);
-    }
-  });
+
   // get the Access Token
   var accessToken = "";
   try {
@@ -82,17 +109,25 @@ mainApp.app.get('/api/verifier/presentation-request', async (req, res) => {
   } catch {
       console.log( "failed to get access token" );
       res.status(401).json({
-        'error': 'Could not acquire credentials to access your Azure Key Vault'
+        'error': 'Could not acquire access token to call Verified ID'
         });  
       return; 
   }
   console.log( `accessToken: ${accessToken}` );
-  // modify the callback method to make it easier to debug 
-  // with tools like ngrok since the URI changes all the time
-  // this way you don't need to modify the callback URL in the payload every time
-  // ngrok changes the URI
-  presentationConfig.callback.url = `https://${req.hostname}/api/verifier/presentation-request-callback`;
+
+  presentationConfig.authority = mainApp.config["DidAuthority"]
+  presentationConfig.callback.url = `https://${req.hostname}/api/request-callback`;
   presentationConfig.callback.state = id;
+
+  if ( req.query.faceCheck && req.query.faceCheck == "1" 
+      && !presentationConfig.requestedCredentials[0].configuration.validation.faceCheck ) {
+    var photoClaim = mainApp.config["sourcePhotoClaimName"] || photo;
+    var confidenceThreshold = parseInt(mainApp.config["matchConfidenceThreshold"]) || 70;
+    presentationConfig.requestedCredentials[0].configuration.validation.faceCheck = { 
+                                                                          sourcePhotoClaimName: photoClaim,
+                                                                          matchConfidenceThreshold: confidenceThreshold
+                                                                        };
+  }
 
   console.log( 'Request Service API Request' );
   var client_api_request_endpoint = `${mainApp.config.msIdentityHostName}verifiableCredentials/createPresentationRequest`;
@@ -115,8 +150,10 @@ mainApp.app.get('/api/verifier/presentation-request', async (req, res) => {
   };
 
   console.log( fetchOptions);
+  console.time("createPresentationRequest");
   const response = await fetch(client_api_request_endpoint, fetchOptions);
   var resp = await response.json()
+  console.timeEnd("createPresentationRequest");
 
   // the response from the VC Request API call is returned to the caller (the UI). It contains the URI to the request which Authenticator can download after
   // it has scanned the QR code. If the payload requested the VC Request service to create the QR code that is returned as well
@@ -124,101 +161,39 @@ mainApp.app.get('/api/verifier/presentation-request', async (req, res) => {
   resp.id = id;                              // add id so browser can pull status
   console.log( 'VC Client API Response' );
   console.log( resp );  
-  res.status(200).json(resp);       
+  
+  if ( response.status > 299 ) {
+    resp.error_description = `[${resp.error.innererror.code}] ${resp.error.message} ${resp.error.innererror.message}`;
+    res.status(400).json( resp );  
+  } else {
+    // prep an initial session state
+    var session = await mainApp.getSessionDataWrapper( id );
+    if ( session ) {
+      console.log( "Storing session data" );
+      session.sessionData = {
+        "status" : "request_created",
+        "message": "Waiting for QR code to be scanned"
+      };
+      mainApp.sessionStore.set( id, session);
+    }
+    res.status(200).json( resp );       
+  }
+  
 })
 
-/**
- * This method is called by the VC Request API when the user scans a QR code and presents a Verifiable Credential to the service
- */
-mainApp.app.post('/api/verifier/presentation-request-callback', parser, async (req, res) => {
-  var body = '';
-  req.on('data', function (data) {
-    body += data;
-  });
-  req.on('end', function () {
-    requestTrace( req );
-    console.log( body );
-    // the api-key is set at startup in app.js. If not present in callback, the call should be rejected
-    if ( req.headers['api-key'] != mainApp.config["apiKey"] ) {
-      res.status(401).json({ 'error': 'api-key wrong or missing' });  
-      return; 
-    }
-    var presentationResponse = JSON.parse(body.toString());
-    var cacheData;
-    switch ( presentationResponse.requestStatus ) {
-      // this callback signals that the request has been retrieved (QR code scanned, etc)
-      case "request_retrieved":
-        cacheData = {
-          "status": presentationResponse.requestStatus,
-          "message": "QR Code is scanned. Waiting for validation..."
-        };
-      break;
-      // this callback signals that presentation has happened and VerifiedID have verified it
-      case "presentation_verified":
-        cacheData = {
-          "status": presentationResponse.requestStatus,
-          "message": "Presentation received",
-          "payload": presentationResponse.verifiedCredentialsData,
-          "subject": presentationResponse.subject,
-          "presentationResponse": presentationResponse
-        };
-        // get details on VC, when it was issued, when it expires, etc
-        if ( presentationResponse.receipt && presentationResponse.receipt.vp_token ) {
-          var vp_token = JSON.parse(base64url.decode(presentationResponse.receipt.vp_token.split(".")[1]));
-          var vc = JSON.parse(base64url.decode(vp_token.vp.verifiableCredential[0].split(".")[1]));
-          cacheData.jti = vc.jti;  
-          cacheData.iat = vc.iat;
-          cacheData.exp = vc.exp;  
-        }
-      break;
-      case "presentation_error":
-        var cacheData = {
-          "status" : presentationResponse.requestStatus,
-          "message": presentationResponse.error.message,
-          "payload": presentationResponse.error.code
-        };
-      break;
-      default:
-        console.log( `400 - Unsupported requestStatus: ${presentationResponse.requestStatus}` );
-        res.status(400).json({'error': `Unsupported requestStatus: ${presentationResponse.requestStatus}`});      
-        return;
-    }
-    // store the session state so the UI can pick it up and progress
-    mainApp.sessionStore.get( presentationResponse.state, (error, session) => {
-      if ( session ) {
-        session.sessionData = cacheData;
-        mainApp.sessionStore.set( presentationResponse.state, session, (error) => {
-          console.log( "200 - OK");
-          res.send();
-        });
-      } else {
-        console.log( `400 - Unknown state: ${presentationResponse.state}` );
-        res.status(400).json({'error': `Unknown state: ${presentationResponse.state}`});      
-        return;
-      }
-    })      
-  });  
-})
-/**
- * this function is called from the UI polling for a response from the AAD VC Service.
- * when a callback is received at the presentationCallback service the session will be updated
- * this method will respond with the status so the UI can reflect if the QR code was scanned and with the result of the presentation
- */
-mainApp.app.get('/api/verifier/presentation-response', async (req, res) => {
+///////////////////////////////////////////////////////////////////////////////////////
+// Return presented credential details to the UI
+mainApp.app.get('/api/verifier/get-presentation-details', async (req, res) => {
   var id = req.query.id;
-  requestTrace( req );
-  mainApp.sessionStore.get( id, (error, session) => {
-    if (session && session.sessionData) {
-      console.log(`status: ${session.sessionData.status}, message: ${session.sessionData.message}`);
-      if ( session.sessionData.status == "presentation_verified" ) {
-        delete session.sessionData.presentationResponse; // browser don't need this
-      }
-      res.status(200).json(session.sessionData);   
-    } else {
-      console.log( `400 - Unknown state: ${id}` );
-      res.status(400).json({'error': `Unknown state: ${id}`});      
-    }
-  })
+  mainApp.requestTrace( req );
+  res.status(200).json({
+    'clientName': presentationConfig.registration.clientName,
+    'purpose': presentationConfig.registration.purpose,
+    'DidAuthority': mainApp.config["DidAuthority"],
+    'type': presentationConfig.requestedCredentials[0].type,
+    'acceptedIssuers': presentationConfig.requestedCredentials[0].acceptedIssuers,
+    'sourcePhotoClaimName': mainApp.config["sourcePhotoClaimName"]
+    });   
 })
 
 /**
@@ -229,7 +204,7 @@ mainApp.app.get('/api/verifier/presentation-response', async (req, res) => {
 var parserJson = bodyParser.json();
 mainApp.app.post('/api/verifier/presentation-response-b2c', parserJson, async (req, res) => {
   var id = req.body.id;
-  requestTrace( req );
+  mainApp.requestTrace( req );
   mainApp.sessionStore.get( id, (error, store) => {
     if (store && store.sessionData && store.sessionData.status == "presentation_verified" ) {
       console.log("Has VC. Will return it to B2C");      
@@ -253,16 +228,4 @@ mainApp.app.post('/api/verifier/presentation-response-b2c', parserJson, async (r
         });   
     }
   })
-})
-
-mainApp.app.get('/api/verifier/get-presentation-details', async (req, res) => {
-  var id = req.query.id;
-  requestTrace( req );
-  res.status(200).json({
-    'clientName': presentationConfig.registration.clientName,
-    'purpose': presentationConfig.registration.purpose,
-    'VerifierAuthority': mainApp.config["VerifierAuthority"],
-    'type': presentationConfig.requestedCredentials[0].type,
-    'acceptedIssuers': presentationConfig.requestedCredentials[0].acceptedIssuers    
-    });   
 })

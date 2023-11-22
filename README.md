@@ -1,11 +1,11 @@
 # Microsoft Entra Verified ID Samples
 
-This repo contains a set of Microsoft Entra Verified ID samples (former Azure AD Verifiable Credentials)
+This repo contains a set of Microsoft Entra Verified ID samples.
 
 ## Samples
 | Sample | Description |
 |------|--------|
-| 1-node-api-idtokenhint | Node sample for using the VC Request API to issue and verify verifiable credentials with a credential contract which allows the VC Request API to pass in a payload for the Verifiable Credentials|
+| 1-node-api-idtokenhint | Node sample for using the Verified ID Request Service API to issue and verify verifiable credentials with a credential contract which allows the API to pass in a payload for the Verifiable Credentials|
 
 
 
@@ -169,7 +169,7 @@ When the QR code is scanned, you get a short callback like this.
 }
 ```
 
-Once the VC is verified, you get a second, more complete, callback which contains all the details on what whas presented by the user.
+Once the VC is verified, you get a second, more complete, callback which contains all the details on what was presented by the user.
 
 ```JSON
 {

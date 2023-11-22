@@ -6,6 +6,5 @@
     "azCertThumbprint":  "<YOUR-AAD-CERTTHUMBPRINT>",
     "azCertificatePrivateKeyLocation":  "<YOUR-AAD-CERTLOCATION>",
     "CredentialManifest": "<YOUR-MANIFEST-URL>",
-    "IssuerAuthority": "<YOUR-did:ion>",
-    "VerifierAuthority": "<VCs-did:ion>"
+    "DidAuthority": "<YOUR-did:ion>"
 }

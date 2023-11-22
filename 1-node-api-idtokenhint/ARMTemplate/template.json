@@ -1,0 +1,323 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "webAppName": {
+            "type": "string",
+            "defaultValue": "<App Name>",
+            "minLength": 2,
+            "metadata": {
+                "description": "app name."
+            }
+        },
+        "repoURL": {
+            "type": "string",
+            "metadata": {
+                "description": "Github repo URL"
+            },
+            "defaultValue": "https://github.com/Azure-Samples/active-directory-verifiable-credentials-node.git"
+        },
+        "branch": {
+            "type": "string",
+            "metadata": {
+                "description": "Github repo branch"
+            },
+            "defaultValue": "main"
+        },
+		"Project": {
+			"type": "string",
+			"metadata": {
+				"description": "Github repo subfolder"
+			},
+			"defaultValue": "1-node-api-idtokenhint"
+		},
+		"azTenantId": {
+            "type": "string",
+            "metadata": {
+                "description": "Entra ID Tenant id"
+            },
+            "defaultValue": "<Tenant id>"
+        },
+        "azClientId": {
+            "type": "string",
+            "metadata": {
+                "description": "azClientId"
+            },
+            "defaultValue": "<azClientId>"
+        },
+        "azClientSecret": {
+            "type": "string",
+            "metadata": {
+                "description": "azClientSecret"
+            },
+            "defaultValue": "<azClientSecret>"
+        },
+        "DidAuthority": {
+            "type": "string",
+            "metadata": {
+                "description": "DidAuthority"
+            },
+            "defaultValue": "<DidAuthority>"
+        },
+        "CredentialManifest": {
+            "type": "string",
+            "metadata": {
+              "description": "CredentialManifest"
+            },
+            "defaultValue": "<ManifestURL>"
+          },
+        "CredentialType": {
+            "type": "string",
+            "metadata": {
+                "description": "CredentialType"
+            },
+            "defaultValue": "VerifiedCredentialExpert"
+        },
+        "PhotoClaimName": {
+            "type": "string",
+            "metadata": {
+              "description": "claim name for photo - if you are using FaceCheck during presentation. Otherwise leave this field blank"
+            },
+            "defaultValue": ""
+        }
+    },
+    "variables": {
+        "appServicePlanPortalName": "[concat(parameters('webAppName'), '-plan')]",
+        "linuxFxVersion": "NODE|18-lts"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Web/serverfarms",
+            "apiVersion": "2020-06-01",
+            "name": "[variables('appServicePlanPortalName')]",
+            "location": "[resourceGroup().location]",
+            "sku": {
+                "name": "B1",
+                "tier": "Basic",
+                "size": "B1",
+                "family": "B",
+                "capacity": 1
+            },
+            "properties": {
+                "perSiteScaling": false,
+                "elasticScaleEnabled": false,
+                "maximumElasticWorkerCount": 1,
+                "isSpot": false,
+                "reserved": true,
+                "isXenon": false,
+                "hyperV": false,
+                "targetWorkerCount": 0,
+                "targetWorkerSizeId": 0,
+                "zoneRedundant": false
+            },
+            "kind": "linux"
+        },
+
+        {
+            "type": "Microsoft.Web/sites",
+            "apiVersion": "2022-09-01",
+            "name": "[parameters('webAppName')]",
+            "location": "[resourceGroup().location]",
+            "kind": "app,linux",
+            "dependsOn": [
+                "[resourceId('Microsoft.Web/serverfarms', variables('appServicePlanPortalName'))]"
+            ],
+            "properties": {
+                "enabled": true,
+                "hostNameSslStates": [
+                    {
+                        "name": "[concat(parameters('webAppName'), '.azurewebsites.net')]",
+                        "sslState": "Disabled",
+                        "hostType": "Standard"
+                    },
+                    {
+                        "name": "[concat(parameters('webAppName'), '.scm.azurewebsites.net')]",
+                        "sslState": "Disabled",
+                        "hostType": "Repository"
+                    }
+                ],
+                "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('appServicePlanPortalName'))]",
+                "reserved": true,
+                "isXenon": false,
+                "hyperV": false,
+                "vnetRouteAllEnabled": false,
+                "vnetImagePullEnabled": false,
+                "vnetContentShareEnabled": false,
+                "siteConfig": {
+                    "numberOfWorkers": 1,
+                    "linuxFxVersion": "[variables('linuxFxVersion')]",
+                    "acrUseManagedIdentityCreds": false,
+                    "alwaysOn": false,
+                    "http20Enabled": false,
+                    "functionAppScaleLimit": 0,
+                    "minimumElasticInstanceCount": 0,
+                    "appSettings": [
+                        {
+                            "name": "ENABLE_ORYX_BUILD",
+                            "value": "false"
+                        },
+                        {
+                            "name": "SCM_DO_BUILD_DURING_DEPLOYMENT",
+                            "value": "false"
+                        },
+                        {
+                            "name": "DEPLOYMENT_SOURCE",
+                            "value": "[Concat('/home/site/repository/', parameters('Project'))]"
+                        },
+						{
+                            "name": "azTenantId",
+                            "value": "[parameters('azTenantId')]"
+                        },
+                        {
+                            "name": "azClientId",
+                            "value": "[parameters('azClientId')]"
+                        },
+                        {
+                            "name": "azClientSecret",
+                            "value": "[parameters('azClientSecret')]"
+                        },
+                        {
+                            "name": "DidAuthority",
+                            "value": "[parameters('DidAuthority')]"
+                        },
+                        {
+                            "name": "CredentialType",
+                            "value": "[parameters('CredentialType')]"
+                        },
+                        {
+                            "name": "PhotoClaimName",
+                            "value": "[parameters('PhotoClaimName')]"
+                        }
+                    ]
+                },
+                "scmSiteAlsoStopped": false,
+                "clientAffinityEnabled": true,
+                "clientCertEnabled": false,
+                "clientCertMode": "Required",
+                "hostNamesDisabled": false,
+                "containerSize": 0,
+                "dailyMemoryTimeQuota": 0,
+                "httpsOnly": false,
+                "redundancyMode": "None",
+                "storageAccountRequired": false,
+                "keyVaultReferenceIdentity": "SystemAssigned"
+            },
+
+            "resources": [
+                {
+                  "type": "sourcecontrols",
+                  "apiVersion": "2018-02-01",
+                  "name": "web",
+                  "location": "[resourceGroup().location]",
+                  "dependsOn": [
+                    "[resourceId('Microsoft.Web/sites', parameters('webAppName'))]"
+                  ],
+                  "properties": {
+                    "repoUrl": "[parameters('repoURL')]",
+                    "branch": "[parameters('branch')]",
+                    "isManualIntegration": true
+                  }
+                }
+            ]
+
+        },
+
+        {
+            "type": "Microsoft.Web/sites/hostNameBindings",
+            "apiVersion": "2022-09-01",
+            "name": "[concat(parameters('webAppName'), '/', parameters('webAppName'), '.azurewebsites.net')]",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Web/sites', parameters('webAppName'))]"
+            ],
+            "properties": {
+                "siteName": "[parameters('webAppName')]",
+                "hostNameType": "Verified"
+            }
+        },
+
+        {
+            "type": "Microsoft.Web/sites/config",
+            "apiVersion": "2022-09-01",
+            "name": "[concat(parameters('webAppName'), '/web')]",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Web/sites', parameters('webAppName'))]"
+            ],
+            "properties": {
+                "numberOfWorkers": 1,
+                "defaultDocuments": [
+                    "Default.htm",
+                    "Default.html",
+                    "Default.asp",
+                    "index.htm",
+                    "index.html",
+                    "iisstart.htm",
+                    "default.aspx",
+                    "index.php",
+                    "hostingstart.html"
+                ],
+                "netFrameworkVersion": "v4.0",
+                "linuxFxVersion": "[variables('linuxFxVersion')]",
+                "requestTracingEnabled": false,
+                "remoteDebuggingEnabled": false,
+            	"remoteDebuggingVersion": "VS2019",
+                "httpLoggingEnabled": true,
+                "acrUseManagedIdentityCreds": false,
+                "logsDirectorySizeLimit": 100,
+                "detailedErrorLoggingEnabled": false,
+                "publishingUsername": "[concat('$', parameters('webAppName'))]",
+                "scmType": "None",
+                "use32BitWorkerProcess": true,
+                "webSocketsEnabled": false,
+                "alwaysOn": false,
+                "managedPipelineMode": "Integrated",
+                "appCommandLine": "[concat('cd /home/site/wwwroot && cp -r /home/site/repository/', parameters('Project'), '/* . && npm install && npm run start')]",
+                "virtualApplications": [
+                    {
+                        "virtualPath": "/",
+                        "physicalPath": "site\\wwwroot",                        
+                        "preloadEnabled": false
+                    }
+                ],
+                "loadBalancing": "LeastRequests",
+                "experiments": {
+                    "rampUpRules": []
+                },
+                "autoHealEnabled": false,
+                "vnetRouteAllEnabled": false,
+                "vnetPrivatePortsCount": 0,
+                "localMySqlEnabled": false,
+                "ipSecurityRestrictions": [
+                    {
+                        "ipAddress": "Any",
+                        "action": "Allow",
+                        "priority": 2147483647,
+                        "name": "Allow all",
+                        "description": "Allow all access"
+                    }
+                ],
+                "scmIpSecurityRestrictions": [
+                    {
+                        "ipAddress": "Any",
+                        "action": "Allow",
+                        "priority": 2147483647,
+                        "name": "Allow all",
+                        "description": "Allow all access"
+                    }
+                ],
+                "scmIpSecurityRestrictionsUseMain": false,
+                "http20Enabled": false,
+                "minTlsVersion": "1.2",
+                "scmMinTlsVersion": "1.2",
+                "ftpsState": "FtpsOnly",
+                "preWarmedInstanceCount": 0,
+                "elasticWebAppScaleLimit": 0,
+                "functionsRuntimeScaleMonitoringEnabled": false,
+                "minimumElasticInstanceCount": 0,
+                "azureStorageAccounts": {}
+            }
+        }
+
+    ]
+}

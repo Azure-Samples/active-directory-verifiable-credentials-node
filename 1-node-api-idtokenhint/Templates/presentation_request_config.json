@@ -16,13 +16,13 @@
   "requestedCredentials": [
     {
       "type": "VerifiedCredentialExpert",
-      "acceptedIssuers": [ "did:ion: copied from your VC portal in this sample the code copies it from CONFIG.JSON" ]
+      "acceptedIssuers": [ "did:ion: copied from your VC portal in this sample the code copies it from CONFIG.JSON" ],
+      "configuration": {
+        "validation": {
+          "allowRevoked": true,
+          "validateLinkedDomain": true
+        }
+      }    
     }
-  ],
-  "configuration": {
-    "validation": {
-      "allowRevoked": true,
-      "validateLinkedDomain": true
-    }
-  }
+  ]
 }
