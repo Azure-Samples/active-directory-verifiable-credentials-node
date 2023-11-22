@@ -52,7 +52,7 @@ function requestRetrieved(requestType) {
 function presentationVerified(id, response) {
     hideQRCode();
     displayMessage("Presentation verified: <br/><br/>" + JSON.stringify(response.claims));
-    window.location = 'PresentationVerified?id=' + id;
+    window.location = 'presentation-verified.html?id=' + id;
 }
 function issuanceComplete(id, response) {
     hideQRCode();

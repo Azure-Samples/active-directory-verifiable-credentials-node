@@ -181,13 +181,29 @@
                             "value": "[parameters('DidAuthority')]"
                         },
                         {
+                            "name": "acceptedIssuers",
+                            "value": "[parameters('DidAuthority')]"
+                        },                        
+                        {
                             "name": "CredentialType",
                             "value": "[parameters('CredentialType')]"
                         },
                         {
+                            "name": "CredentialManifest",
+                            "value": "[parameters('CredentialManifest')]"
+                        },
+                        {
+                            "name": "issuancePinCodeLength",
+                            "value": "4"
+                        },
+                        {
                             "name": "PhotoClaimName",
                             "value": "[parameters('PhotoClaimName')]"
-                        }
+                        },
+                        {
+                            "name": "matchConfidenceThreshold",
+                            "value": "70"
+                        }                        
                     ]
                 },
                 "scmSiteAlsoStopped": false,
