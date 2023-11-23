@@ -8,5 +8,7 @@ docker run --rm -it -p 8080:8080 ^
  -e CredentialManifest='https://verifiedid.did.msidentity.com/v1.0/tenants/...etc...' ^
  -e CredentialType=VerifiedCredentialExpert ^
  -e acceptedIssuers='did:web:...etc...' ^
- -e issuancePinCodeLength=4 ^
+ -e issuancePinCodeLength=4 ^ 
+ -e sourcePhotoClaimName= ^
+ -e matchConfidenceThreshold=70 ^
   node-api-idtokenhint:latest  

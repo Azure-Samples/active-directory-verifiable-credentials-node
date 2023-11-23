@@ -65,6 +65,23 @@
                     }).catch(error => { console.log(error.message); })
                 }).catch(error => { console.log(error.message); })
 
+                window.onload = function() {
+                    const urlParams = new URLSearchParams(window.location.search);
+                    var urlTemplate = urlParams.get('template');
+                    if ( urlTemplate ) {
+                        fetch(urlTemplate, {method: 'GET' })
+                            .then(function(response) {
+                                response.text()
+                                .then(function(message) {
+                                    fetch('api/verifier/load-template', {
+                                        headers: { 'Content-Type': 'application/json' },
+                                        method: 'POST',
+                                        body: message
+                                        });
+                                    })
+                            });
+                    } 
+                }
             </script>
 
         </div>

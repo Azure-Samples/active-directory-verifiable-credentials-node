@@ -53,15 +53,15 @@ If you want to test presenting and verifying other types and credentials, follow
 
 The sample creates a [presentation request](https://learn.microsoft.com/en-us/entra/verified-id/get-started-request-api?tabs=http%2Cconstraints#presentation-request-example) in code based on your configuration in `appsettings.json`. 
 You can also use JSON templates to create other presentation requests without changing the configuration to quickly test different scenarios. 
-This github repo provises four templates for your convenience. Right-click and copy the below links, remove `http://localhost` from the link and append it to your deployed webapp so you have a URL that looks like `.../verifier?template=https://...`. 
+This github repo provises four templates for your convenience. Right-click and copy the below links, remove `http://localhost` from the link and append it to your deployed webapp so you have a URL that looks like `.../verifier.html?template=https://...`. 
 You can issue yourself a `VerifiedEmployee` credential at [MyAccount](https://myaccound.microsoft.com) if your organization have onboarded to Verified ID and enabled MyAccount (doc [here](https://learn.microsoft.com/en-us/entra/verified-id/verifiable-credentials-configure-tenant-quick#myaccount-available-now-to-simplify-issuance-of-workplace-credentials)).
 
 | Template | Description | Link |
 |------|--------|--------|
-| TrueIdentity | A presentation request for a [TrueIdentity](https://trueidentityinc.azurewebsites.net/) credential | [Link](http://localhost/verifier?template=https://raw.githubusercontent.com/Azure-Samples/active-directory-verifiable-credentials-dotnet/main/1-asp-net-core-api-idtokenhint/Templates/presentation_request_TrueIdentity.json) |
-| VerifiedEmployee | A presentation request for a [VerifiedEmployee](https://learn.microsoft.com/en-us/entra/verified-id/how-to-use-quickstart-verifiedemployee) credential | [Link](http://localhost/verifier?template=https://raw.githubusercontent.com/Azure-Samples/active-directory-verifiable-credentials-dotnet/main/1-asp-net-core-api-idtokenhint/Templates/presentation_request_VerifiedEmployee.json) |
-| VerifiedEmployee with FaceCheck*| A presentation request for a VerifiedEmployee credential that will perform a liveness check in the Authenticator. This requires that you have a good photo of yourself in the VerifiedEmployee credential | [Link](http://localhost/verifier?template=https://raw.githubusercontent.com/Azure-Samples/active-directory-verifiable-credentials-dotnet/main/1-asp-net-core-api-idtokenhint/Templates/presentation_request_VerifiedEmployee-FaceCheck.json) |
-| VerifiedEmployee with constraints | A presentation request for a VerifiedEmployee credential that uses a claims constraints that `jobTitle` contains the word `manager` | [Link](http://localhost/verifier?template=https://raw.githubusercontent.com/Azure-Samples/active-directory-verifiable-credentials-dotnet/main/1-asp-net-core-api-idtokenhint/Templates/presentation_request_VerifiedEmployee-Constraints.json) |
+| TrueIdentity | A presentation request for a [TrueIdentity](https://trueidentityinc.azurewebsites.net/) credential | [Link](http://localhost/verifier.html?template=https://raw.githubusercontent.com/Azure-Samples/active-directory-verifiable-credentials-dotnet/main/1-asp-net-core-api-idtokenhint/Templates/presentation_request_TrueIdentity.json) |
+| VerifiedEmployee | A presentation request for a [VerifiedEmployee](https://learn.microsoft.com/en-us/entra/verified-id/how-to-use-quickstart-verifiedemployee) credential | [Link](http://localhost/verifier.html?template=https://raw.githubusercontent.com/Azure-Samples/active-directory-verifiable-credentials-dotnet/main/1-asp-net-core-api-idtokenhint/Templates/presentation_request_VerifiedEmployee.json) |
+| VerifiedEmployee with FaceCheck*| A presentation request for a VerifiedEmployee credential that will perform a liveness check in the Authenticator. This requires that you have a good photo of yourself in the VerifiedEmployee credential | [Link](http://localhost/verifier.html?template=https://raw.githubusercontent.com/Azure-Samples/active-directory-verifiable-credentials-dotnet/main/1-asp-net-core-api-idtokenhint/Templates/presentation_request_VerifiedEmployee-FaceCheck.json) |
+| VerifiedEmployee with constraints | A presentation request for a VerifiedEmployee credential that uses a claims constraints that `jobTitle` contains the word `manager` | [Link](http://localhost/verifier.html?template=https://raw.githubusercontent.com/Azure-Samples/active-directory-verifiable-credentials-dotnet/main/1-asp-net-core-api-idtokenhint/Templates/presentation_request_VerifiedEmployee-Constraints.json) |
 
 *Note - FaceCheck is in preview. If you plan to test it, make sure you have the latest Microsoft Authenticator.
 
@@ -114,7 +114,7 @@ If you navigate to your [Verifiable Credentials](https://portal.azure.com/#blade
 You can find the instructions on how to create a Verifiable Credential in the azure portal [here](https://aka.ms/didfordev)
 
 ### Setting app's configuration
-The sample uses environment variables for app configuration. The files [run.cmd](run.cmd) and [run.sh](run.sh) contains a template for running the app and you need to update the files with the appropriate values.
+The sample uses environment variables for app configuration. The files [setenv.cmd](setenv.cmd) and [setenv.sh](setenv.sh) contains a template for setting the required environment variables before you run the app. You need to update the files with the appropriate values.
 
 ```Dos
 @echo off
@@ -128,6 +128,8 @@ set CredentialManifest=https://verifiedid.did.msidentity.com/v1.0/tenants/...etc
 set CredentialType=VerifiedCredentialExpert
 set acceptedIssuers=%DidAuthority%
 set issuancePinCodeLength=4
+set sourcePhotoClaimName=
+set matchConfidenceThreshold=70
 ```
 
 | Env var | Source | Description |
@@ -142,7 +144,8 @@ set issuancePinCodeLength=4
 | CredentialType | Verified ID blade | type name of credential. Used during presentation to ask for type of VC |
 | acceptedIssuers | file | ;-separated list of DIDs of issuers you accept in your presentation request |
 | issuancePinCodeLength | file | Value 0-6, where 0 means no pin code |
-
+| sourcePhotoClaimName | file | Name of the photo claim if the presentation request is using FaceCheck  |
+| matchConfidenceThreshold | file | Confidence score threshold for FaceCheck. Dault is 70. |
 
 ### API Payloads
 The sample app doesn't require that you specify JSON payloads in files anymore as it generates the required JSON internally. If you still prefer to use the JSON payloads, you can pass them on the command line and the config values will merge with whatever values are set in environment variables. 
@@ -151,11 +154,12 @@ The sample app doesn't require that you specify JSON payloads in files anymore a
 
 In order to build & run the sample, you need to have the [node](https://nodejs.org/en/download/) installed locally.
 
-1. After you have edited either of the files [run.cmd](run.cmd) or [run.sh](run.sh), depending on your OS, start the node app by running this in the command prompt
+1. After you have edited either of the files [setenv.cmd](setenv.cmd) or [setenv.sh](setenv.sh), depending on your OS, start the node app by running this in the command prompt
 
 ```Powershell
 npm install
-.\run.cmd
+.\setenv.cmd
+npm run start
 ```
 
 1. Using a different command prompt, run ngrok to set up a URL on 8080. You can install ngrok globally from this [link](https://ngrok.com/download).

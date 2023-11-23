@@ -22,6 +22,7 @@ var msal = require('@azure/msal-node');
 var mainApp = require('./app.js');
 
 var parser = bodyParser.urlencoded({ extended: false });
+var parserJson = bodyParser.json();
 
 ///////////////////////////////////////////////////////////////////////////////////////
 // Setup the presentation request payload template
@@ -64,25 +65,28 @@ if ( !requestConfigFile ) {
     presentationConfig = require( requestConfigFile );
   }
 }
-if ( mainApp.config["clientName"] ) {
-  presentationConfig.registration.clientName = mainApp.config["clientName"];
+function updatePresentationConfig(presentationConfig) {
+  if ( mainApp.config["clientName"] ) {
+    presentationConfig.registration.clientName = mainApp.config["clientName"];
+  }
+  if ( presentationConfig.registration.clientName.startsWith("...") ) {
+    presentationConfig.registration.clientName = "Node.js Verified ID sample";
+  }
+  if ( mainApp.config["purpose"] ) {
+    presentationConfig.registration.purpose = mainApp.config["purpose"];
+  }
+  if ( presentationConfig.registration.purpose.startsWith("...") ) {
+    presentationConfig.registration.purpose = "To prove that you are an expert";
+  }
+  // copy the issuerDID from the settings and fill in the acceptedIssuers part of the payload
+  // this means only that issuer should be trusted for the requested credentialtype
+  // this value is an array in the payload, you can trust multiple issuers for the same credentialtype
+  // very common to accept the test VCs and the Production VCs coming from different verifiable credential services
+  if ( presentationConfig.callback.headers ) {
+    presentationConfig.callback.headers['api-key'] = mainApp.config["apiKey"];
+  }
 }
-if ( presentationConfig.registration.clientName.startsWith("...") ) {
-  presentationConfig.registration.clientName = "Node.js Verified ID sample";
-}
-if ( mainApp.config["purpose"] ) {
-  presentationConfig.registration.purpose = mainApp.config["purpose"];
-}
-if ( presentationConfig.registration.purpose.startsWith("...") ) {
-  presentationConfig.registration.purpose = "To prove that you are an expert";
-}
-// copy the issuerDID from the settings and fill in the acceptedIssuers part of the payload
-// this means only that issuer should be trusted for the requested credentialtype
-// this value is an array in the payload, you can trust multiple issuers for the same credentialtype
-// very common to accept the test VCs and the Production VCs coming from different verifiable credential services
-if ( presentationConfig.callback.headers ) {
-  presentationConfig.callback.headers['api-key'] = mainApp.config["apiKey"];
-}
+updatePresentationConfig( presentationConfig );
 if ( mainApp.config["CredentialType"] ) {
   presentationConfig.requestedCredentials[0].type = mainApp.config["CredentialType"]
 }
@@ -196,12 +200,30 @@ mainApp.app.get('/api/verifier/get-presentation-details', async (req, res) => {
     });   
 })
 
+mainApp.app.post('/api/verifier/load-template', parser, async (req, res) => {
+  var body = '';
+  req.on('data', function (data) {
+    body += data;
+  });
+  req.on('end', function () {
+    mainApp.requestTrace( req );
+    console.log( "template passed:" );
+    console.log( body );
+    presentationConfig = JSON.parse( body );
+    updatePresentationConfig( presentationConfig );
+    console.log( "new presentationRequest:" );
+    console.log( presentationConfig );
+    res.status(200).json({
+      'status': `template loaded`
+      });
+  });  
+})
+
 /**
  * B2C REST API Endpoint for retrieving the VC presentation response
  * body: The InputClaims from the B2C policy. It will only be one claim named 'id'
  * return: a JSON structure with claims from the VC presented
  */
-var parserJson = bodyParser.json();
 mainApp.app.post('/api/verifier/presentation-response-b2c', parserJson, async (req, res) => {
   var id = req.body.id;
   mainApp.requestTrace( req );
