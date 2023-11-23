@@ -11,4 +11,6 @@ docker run --rm -it -p 8080:8080 \
  -e CredentialType=VerifiedCredentialExpert \
  -e acceptedIssuers='did:web:...etc...' \
  -e issuancePinCodeLength=4 \
+ -e sourcePhotoClaimName= \
+ -e matchConfidenceThreshold=70 \
   node-api-idtokenhint:latest  
