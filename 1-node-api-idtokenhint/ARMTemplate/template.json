@@ -277,7 +277,6 @@
                 "linuxFxVersion": "[variables('linuxFxVersion')]",
                 "requestTracingEnabled": false,
                 "remoteDebuggingEnabled": false,
-            	"remoteDebuggingVersion": "VS2019",
                 "httpLoggingEnabled": true,
                 "acrUseManagedIdentityCreds": false,
                 "logsDirectorySizeLimit": 100,
